@@ -683,17 +683,20 @@ done
 """
 
 
-def _signal_container_runtimes(challenge, sig=None, rand_hash=None) -> list:
+def _signal_container_runtimes(challenge, sig=None, rand_hash=None, batch_id=None) -> list:
     """TERM/KILL tig-runtime and tig-verifier inside a challenge container.
 
     Killing the host-side `docker exec` client leaves the container process
     running. Walk /proc so we do not depend on pkill being installed.
+    Prefer batch_id (output dir) over rand_hash: one job's roots share a
+    hash, so a hash kill on an EPYC wipes every sibling root with 143.
     """
     if not challenge:
         return []
+    mark = batch_id or rand_hash or ""
     env = {
         "KILL_SIG": sig or "",
-        "KILL_HASH": rand_hash or "",
+        "KILL_HASH": mark,
     }
     try:
         proc = _docker_exec_sh(challenge, _CONTAINER_RUNTIME_SCRIPT, env=env)
@@ -708,7 +711,7 @@ def _signal_container_runtimes(challenge, sig=None, rand_hash=None) -> list:
             challenge,
             len(pids),
             "s" if len(pids) != 1 else "",
-            f" hash={rand_hash[:12]}" if rand_hash else "",
+            f" mark={(batch_id or rand_hash or '')[:24]}" if (batch_id or rand_hash) else "",
         )
     return pids
 
@@ -773,7 +776,6 @@ def _stop_batch(batch_id, reason):
     job = PROCESSING_BATCH_IDS.pop(batch_id, None)
     batch = (job or {}).get("batch") or {}
     challenge = batch.get("challenge")
-    rand_hash = batch.get("rand_hash")
     logger.info("stopping batch %s (%s)", batch_id, reason)
     with _RUNTIME_LOCK:
         _STOPPED_BATCH_IDS[batch_id] = now()
@@ -786,8 +788,8 @@ def _stop_batch(batch_id, reason):
             for other in PROCESSING_BATCH_IDS.values()
         )
         if still_needed:
-            _signal_container_runtimes(challenge, "TERM", rand_hash)
-            _signal_container_runtimes(challenge, "KILL", rand_hash)
+            _signal_container_runtimes(challenge, "TERM", batch_id=batch_id)
+            _signal_container_runtimes(challenge, "KILL", batch_id=batch_id)
         else:
             _signal_container_runtimes(challenge, "TERM")
             _mark_draining(challenge)
@@ -801,7 +803,7 @@ def _apply_master_assignment(live_ids, *, stale_only=False):
     Empty polls are not a revoke (cap slice / already-submitted ghosts) —
     keep everything. A non-empty list means master shed the rest: stop
     leftover ROOTS so they stop starving the live job. Proofs stay (local
-    artifacts, not stealable). Same-challenge stop kills by rand_hash.
+    artifacts, not stealable). Same-challenge stop kills by batch id.
     """
     global _EMPTY_REVOKE_STREAK
     live_ids = set(live_ids or ())
@@ -908,6 +910,10 @@ def run_tig_runtime(nonce, batch, so_path, ptx_path, results_dir) -> bool:
                     logger.info("stopped container runtime batch %s nonce %s", batch["id"], nonce)
                     return False
                 if not os.path.exists(output_file):
+                    # Sibling leftover stop used to TERM this live root (143).
+                    # Requeue the nonce; do not fail the whole batch.
+                    if ret in (143, 137):
+                        raise _NonceInterrupted(f"exit {ret}")
                     if ret == 0:
                         raise Exception("no output")
                     raise Exception(f"failed with exit code {ret}: {stderr}")
@@ -952,7 +958,7 @@ def run_tig_runtime(nonce, batch, so_path, ptx_path, results_dir) -> bool:
                     _signal_container_runtimes(
                         batch.get("challenge"),
                         "TERM",
-                        batch.get("rand_hash"),
+                        batch_id=batch.get("id"),
                     )
                     logger.info("stopped container runtime batch %s nonce %s", batch["id"], nonce)
                     return False
