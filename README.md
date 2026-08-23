@@ -74,7 +74,7 @@ If you already run stock `tig-benchmarker`, you can still copy `main.py` + `dash
 
 ## Version
 
-See `VERSION` (currently `0.1.17`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
+See `VERSION` (currently `0.1.18`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
 
 After a host crash, do not let Docker auto-start the old containers. Challenge
 runtimes use `restart: "no"`. `scripts/start-fresh.sh` pulls images and

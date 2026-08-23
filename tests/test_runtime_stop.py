@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Stop/kill leftovers: do not report idle while container runtimes remain."""
 
+import errno
 import sys
 import unittest
 from pathlib import Path
+from queue import Queue
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -213,6 +215,47 @@ class RuntimeStopTests(unittest.TestCase):
         slave._mark_idle_if_quiet()
         self.assertIsNotNone(slave._IDLE_SINCE_MS)
         self.assertEqual(slave._runtime_state(), "idle")
+
+    def test_closed_pipe_error_helper(self):
+        self.assertTrue(
+            slave._is_closed_pipe_error(OSError(errno.EBADF, "Bad file descriptor"))
+        )
+        self.assertTrue(slave._is_closed_pipe_error(ValueError("I/O operation on closed file")))
+        self.assertFalse(slave._is_closed_pipe_error(Exception("no output")))
+
+    def test_kill_popen_does_not_close_pipes(self):
+        proc = MagicMock()
+        proc.poll.return_value = None
+        stdout = MagicMock()
+        stderr = MagicMock()
+        proc.stdout = stdout
+        proc.stderr = stderr
+        slave._kill_popen(proc)
+        proc.kill.assert_called_once()
+        stdout.close.assert_not_called()
+        stderr.close.assert_not_called()
+
+    @patch.object(slave, "_status_update_progress")
+    @patch.object(
+        slave,
+        "run_tig_runtime",
+        side_effect=OSError(errno.EBADF, "Bad file descriptor"),
+    )
+    def test_process_nonces_requeues_ebadf(self, _run, _status):
+        q = Queue()
+        q.put(7)
+        slave.PROCESSING_BATCH_IDS["b1"] = {
+            "batch": {"id": "b1", "num_nonces": 2, "start_nonce": 7, "settings": {}},
+            "q": q,
+            "finished": set(),
+            "so_path": "x",
+            "ptx_path": None,
+            "start": 1,
+        }
+        slave.process_nonces("/tmp")
+        self.assertIn("b1", slave.PROCESSING_BATCH_IDS)
+        self.assertEqual(q.get_nowait(), 7)
+        self.assertNotIn("b1", slave.READY_BATCH_IDS)
 
 
 if __name__ == "__main__":

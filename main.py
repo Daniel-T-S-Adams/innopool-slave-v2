@@ -4,6 +4,7 @@
 Drop-in replacement for tig-benchmarker/slave/main.py.
 """
 
+import errno
 import io
 import json
 import mimetypes
@@ -29,6 +30,19 @@ from common.structs import OutputData, MerkleProof
 from common.merkle_tree import MerkleTree, MerkleHash
 
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
+
+
+class _NonceInterrupted(Exception):
+    """docker exec pipe died under a still-live batch; requeue this nonce."""
+
+
+def _is_closed_pipe_error(exc) -> bool:
+    if exc is None:
+        return False
+    if isinstance(exc, OSError) and getattr(exc, "errno", None) == errno.EBADF:
+        return True
+    text = str(exc).lower()
+    return "bad file descriptor" in text or "i/o operation on closed" in text
 
 def _package_slave_version() -> str:
     """Version always comes from the packaged VERSION file (copied into the image)."""
@@ -614,19 +628,18 @@ def _forget_runtime_proc(batch_id, process):
 
 
 def _kill_popen(process):
+    """Kill the host docker-exec client. Do not close pipes here.
+
+    Closing stdout/stderr from the stop thread races the nonce worker's
+    communicate() and surfaces as [Errno 9] Bad file descriptor, which
+    used to fail the whole batch.
+    """
     if process is None:
         return
     if process.poll() is None:
         try:
             process.kill()
         except OSError:
-            pass
-    for pipe in (process.stdout, process.stderr):
-        if pipe is None:
-            continue
-        try:
-            pipe.close()
-        except Exception:
             pass
 
 
@@ -943,6 +956,17 @@ def run_tig_runtime(nonce, batch, so_path, ptx_path, results_dir) -> bool:
                     )
                     logger.info("stopped container runtime batch %s nonce %s", batch["id"], nonce)
                     return False
+            except (OSError, ValueError) as exc:
+                if not _is_closed_pipe_error(exc):
+                    raise
+                if not _batch_is_live(batch["id"]):
+                    logger.info(
+                        "stopped container runtime batch %s nonce %s (closed pipe)",
+                        batch["id"],
+                        nonce,
+                    )
+                    return False
+                raise _NonceInterrupted(str(exc)) from exc
     finally:
         _forget_runtime_proc(batch["id"], process)
 
@@ -1230,7 +1254,40 @@ def process_nonces(results_dir):
             nonces_running=max(0, in_flight),
             batch=batch,
         )
+    except _NonceInterrupted as exc:
+        if batch_id in PROCESSING_BATCH_IDS:
+            try:
+                q.put(nonce)
+            except Exception:
+                pass
+            logger.warning(
+                "nonce %s on %s interrupted (%s); requeued",
+                nonce,
+                batch_id,
+                exc,
+            )
+        return
     except Exception as e:
+        if _is_closed_pipe_error(e):
+            if batch_id in PROCESSING_BATCH_IDS:
+                try:
+                    q.put(nonce)
+                except Exception:
+                    pass
+                logger.warning(
+                    "nonce %s on %s hit closed pipe (%s); requeued",
+                    nonce,
+                    batch_id,
+                    e,
+                )
+                return
+            logger.info(
+                "nonce %s dropped; batch %s already stopped (%s)",
+                nonce,
+                batch_id,
+                e,
+            )
+            return
         msg = f"batch {batch_id}, nonce {nonce}, runtime error: {e}"
         logger.error(msg)
         with open(f"{results_dir}/{batch['id']}/result.json", "w") as f:
