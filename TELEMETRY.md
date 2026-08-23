@@ -21,7 +21,7 @@ Stock slaves omit all fields; master degrades safely.
 | Field | Type | Notes |
 |---|---|---|
 | `state` | string | `idle` \| `downloading` \| `running` \| `submitting` (stays `running` while leftover container runtimes are being reaped) |
-| `active_batches` | int ≥ 0 | In `PROCESSING_BATCH_IDS` plus draining challenge containers |
+| `active_batches` | int ≥ 0 | `len(PROCESSING_BATCH_IDS)` (leftover roots master shed are stopped) |
 | `pending_batches` | int ≥ 0 | In `PENDING_BATCH_IDS` |
 | `last_idle_ms` | int ≥ 0 | Last submit/finish → next local work gap; if currently idle, age of this idle |
 | `slave_version` | string | e.g. `innopool-slave/0.1.0` |

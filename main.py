@@ -783,28 +783,41 @@ def _stop_batch(batch_id, reason):
 
 
 def _apply_master_assignment(live_ids, *, stale_only=False):
-    """Do not treat /get-batches as a full assignment snapshot.
+    """Reconcile local PROCESSING with this poll's live IDs.
 
-    Master returns a capped concurrent slice, not every batch this slave
-    already owns. Empty polls and shrinks (16 → 1) used to SIGKILL live
-    nonces (137 / 143 / EBADF). Keep in-flight work; only accept new IDs.
+    Empty polls are not a revoke (cap slice / already-submitted ghosts) —
+    keep everything. A non-empty list means master shed the rest: stop
+    leftover ROOTS so they stop starving the live job. Proofs stay (local
+    artifacts, not stealable). Same-challenge stop kills by rand_hash.
     """
     global _EMPTY_REVOKE_STREAK
     live_ids = set(live_ids or ())
     _EMPTY_REVOKE_STREAK = 0
     omitted = sorted(set(PROCESSING_BATCH_IDS) - live_ids)
-    if omitted and live_ids:
-        logger.info(
-            "master listed %s live; keeping in-flight %s",
-            sorted(live_ids),
-            omitted,
-        )
+    if not live_ids:
+        if PROCESSING_BATCH_IDS:
+            logger.warning(
+                "master returned no live batches%s; keeping in-flight %s",
+                " (already-submitted ghosts)" if stale_only else "",
+                sorted(PROCESSING_BATCH_IDS),
+            )
         return
-    if not live_ids and PROCESSING_BATCH_IDS:
-        logger.warning(
-            "master returned no live batches%s; keeping in-flight %s",
-            " (already-submitted ghosts)" if stale_only else "",
-            sorted(PROCESSING_BATCH_IDS),
+    stopped = []
+    kept_proofs = []
+    for batch_id in omitted:
+        job = PROCESSING_BATCH_IDS.get(batch_id) or {}
+        batch = job.get("batch") or {}
+        if batch.get("sampled_nonces") is not None:
+            kept_proofs.append(batch_id)
+            continue
+        _stop_batch(batch_id, "master shed leftover root")
+        stopped.append(batch_id)
+    if stopped or kept_proofs:
+        logger.info(
+            "master listed %s live; stopped leftover roots %s kept proofs %s",
+            sorted(live_ids),
+            stopped,
+            kept_proofs,
         )
 
 

@@ -74,7 +74,7 @@ If you already run stock `tig-benchmarker`, you can still copy `main.py` + `dash
 
 ## Version
 
-See `VERSION` (currently `0.1.16`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
+See `VERSION` (currently `0.1.17`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
 
 After a host crash, do not let Docker auto-start the old containers. Challenge
 runtimes use `restart: "no"`. `scripts/start-fresh.sh` pulls images and
@@ -86,7 +86,8 @@ container (not just the host `docker exec` client). Leftover drain matches
 argv0 only, so the inspector script cannot count as a leftover on a clean
 box. Drain does not count as live work and does not SIGKILL a container
 that still has a live batch. `/get-batches` is a capped slice — empty
-polls and shrinks no longer abandon in-flight work.
+polls keep in-flight work. A non-empty shrink stops leftover **roots**
+master already released; in-flight **proofs** stay.
 
 Missing challenge containers are reported to the master as infrastructure errors (so the
 assignment is released) instead of silently re-queuing while the slave keeps heartbeating.

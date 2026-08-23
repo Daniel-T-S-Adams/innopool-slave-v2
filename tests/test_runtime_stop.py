@@ -117,16 +117,84 @@ class RuntimeStopTests(unittest.TestCase):
         self.assertEqual(slave._DRAINING, {})
 
     @patch.object(slave, "_signal_container_runtimes", return_value=[])
-    def test_omitted_batch_keeps_inflight(self, _signal):
+    def test_omitted_root_is_stopped(self, _signal):
         slave.PROCESSING_BATCH_IDS["old"] = {
-            "batch": {"id": "old", "challenge": "energy_arbitrage", "rand_hash": "x", "settings": {}},
+            "batch": {
+                "id": "old",
+                "challenge": "energy_arbitrage",
+                "rand_hash": "x",
+                "settings": {},
+                "sampled_nonces": None,
+            },
             "finished": set(),
             "start": 1,
         }
         slave._apply_master_assignment(["new"], stale_only=False)
-        self.assertIn("old", slave.PROCESSING_BATCH_IDS)
+        self.assertNotIn("old", slave.PROCESSING_BATCH_IDS)
+        self.assertIn("energy_arbitrage", slave._DRAINING)
+        _signal.assert_called()
+
+    @patch.object(slave, "_signal_container_runtimes", return_value=[])
+    def test_omitted_proof_keeps_inflight(self, _signal):
+        slave.PROCESSING_BATCH_IDS["proof"] = {
+            "batch": {
+                "id": "proof",
+                "challenge": "satisfiability",
+                "rand_hash": "p",
+                "settings": {},
+                "sampled_nonces": [1, 2],
+            },
+            "finished": set(),
+            "start": 1,
+        }
+        slave._apply_master_assignment(["other"], stale_only=False)
+        self.assertIn("proof", slave.PROCESSING_BATCH_IDS)
         self.assertEqual(slave._DRAINING, {})
         _signal.assert_not_called()
+
+    @patch.object(slave, "_signal_container_runtimes", return_value=[])
+    def test_shrink_stops_leftover_roots_keeps_proof(self, _signal):
+        slave.PROCESSING_BATCH_IDS["root-a"] = {
+            "batch": {
+                "id": "root-a",
+                "challenge": "satisfiability",
+                "rand_hash": "a",
+                "settings": {},
+                "sampled_nonces": None,
+            },
+            "finished": set(),
+            "start": 1,
+        }
+        slave.PROCESSING_BATCH_IDS["root-b"] = {
+            "batch": {
+                "id": "root-b",
+                "challenge": "satisfiability",
+                "rand_hash": "b",
+                "settings": {},
+                "sampled_nonces": None,
+            },
+            "finished": set(),
+            "start": 1,
+        }
+        slave.PROCESSING_BATCH_IDS["proof"] = {
+            "batch": {
+                "id": "proof",
+                "challenge": "satisfiability",
+                "rand_hash": "p",
+                "settings": {},
+                "sampled_nonces": [9],
+            },
+            "finished": set(),
+            "start": 1,
+        }
+        slave._apply_master_assignment(["proof"], stale_only=False)
+        self.assertNotIn("root-a", slave.PROCESSING_BATCH_IDS)
+        self.assertNotIn("root-b", slave.PROCESSING_BATCH_IDS)
+        self.assertIn("proof", slave.PROCESSING_BATCH_IDS)
+        self.assertEqual(
+            slave._collect_host_telemetry(8, query_gpu=False)["active_batches"],
+            1,
+        )
 
     def test_stopped_batch_is_not_live(self):
         slave.PROCESSING_BATCH_IDS["b1"] = {"batch": {"id": "b1"}}
