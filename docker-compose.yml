@@ -79,11 +79,17 @@ services:
     # install.sh systemd pulls images and force-recreates before work starts.
     restart: "no"
 
-  # GPU challenge runtimes (pool-gpu-*) — require NVIDIA Container Toolkit
+  # GPU challenge runtimes (pool-gpu-*) — require NVIDIA Container Toolkit.
+  # runtime: nvidia alone does not inject a device on toolkit 1.17+;
+  # --gpus all / NVIDIA_VISIBLE_DEVICES is what makes CUDA see the card.
   vector_search:
     image: ghcr.io/tig-foundation/tig-monorepo/vector_search/runtime:${TIG_VERSION}
     container_name: vector_search
     runtime: nvidia
+    gpus: all
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     volumes:
       - ${ALGORITHMS_DIR}:/app/algorithms
       - ${RESULTS_DIR}:/app/results
@@ -96,6 +102,10 @@ services:
     image: ghcr.io/tig-foundation/tig-monorepo/hypergraph/runtime:${TIG_VERSION}
     container_name: hypergraph
     runtime: nvidia
+    gpus: all
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     volumes:
       - ${ALGORITHMS_DIR}:/app/algorithms
       - ${RESULTS_DIR}:/app/results
@@ -108,6 +118,10 @@ services:
     image: ghcr.io/tig-foundation/tig-monorepo/neuralnet_optimizer/runtime:${TIG_VERSION}
     container_name: neuralnet_optimizer
     runtime: nvidia
+    gpus: all
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     volumes:
       - ${ALGORITHMS_DIR}:/app/algorithms
       - ${RESULTS_DIR}:/app/results
