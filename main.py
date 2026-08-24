@@ -868,7 +868,11 @@ def download_library(algorithms_dir, batch):
 
 
 def _batch_is_live(batch_id) -> bool:
-    return batch_id in PROCESSING_BATCH_IDS and not _is_stopped_batch(batch_id)
+    # PROCESSING membership is the only live signal. A leftover stop used to
+    # tombstone the id in _STOPPED_BATCH_IDS for 10 minutes; if master
+    # re-handed the same root, every nonce returned False and was dropped,
+    # so merkle waited forever (COMPUTING ROOT, load ~0).
+    return batch_id in PROCESSING_BATCH_IDS
 
 
 def run_tig_runtime(nonce, batch, so_path, ptx_path, results_dir) -> bool:
@@ -987,6 +991,27 @@ def compute_merkle_roots(results_dir):
         start = job["start"]
         num_processing = batch["num_nonces"] - len(job["finished"])
         if num_processing > 0:
+            try:
+                queued = job["q"].qsize()
+            except Exception:
+                queued = -1
+            with _RUNTIME_LOCK:
+                inflight_procs = len(_RUNTIME_PROCS.get(batch_id) or ())
+            if queued == 0 and inflight_procs == 0:
+                start_n = int(batch.get("start_nonce") or 0)
+                expected = range(start_n, start_n + int(batch["num_nonces"]))
+                missing = [n for n in expected if n not in job["finished"]]
+                if missing:
+                    logger.warning(
+                        "batch %s orphaned %s nonce(s); requeued",
+                        batch_id,
+                        len(missing),
+                    )
+                    for n in missing:
+                        try:
+                            job["q"].put(n)
+                        except Exception:
+                            pass
             logger.debug(f"batch {batch['id']} still processing {num_processing} nonces")
             time.sleep(1.5)
             continue
@@ -1210,6 +1235,8 @@ def process_batch(algorithms_dir, results_dir):
     so_path, ptx_path = download_library(algorithms_dir, batch)
     started_ms = now()
     logger.info(f"batch {batch['id']} started")
+    with _RUNTIME_LOCK:
+        _STOPPED_BATCH_IDS.pop(batch_id, None)
     PROCESSING_BATCH_IDS[batch_id] = {
         "batch": batch,
         "so_path": so_path,
@@ -1250,6 +1277,19 @@ def process_nonces(results_dir):
     try:
         completed = run_tig_runtime(nonce, batch, so_path, ptx_path, results_dir)
         if not completed:
+            # Stopped leftovers pop PROCESSING first. If this id is still
+            # here, the nonce was taken off the queue and must go back or
+            # merkle waits forever on a hole.
+            if batch_id in PROCESSING_BATCH_IDS:
+                try:
+                    q.put(nonce)
+                except Exception:
+                    pass
+                logger.warning(
+                    "nonce %s on %s incomplete; requeued",
+                    nonce,
+                    batch_id,
+                )
             return
         job["finished"].add(nonce)
         in_flight = batch["num_nonces"] - len(job["finished"]) - q.qsize()

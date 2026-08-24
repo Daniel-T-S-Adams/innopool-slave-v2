@@ -201,10 +201,73 @@ class RuntimeStopTests(unittest.TestCase):
     def test_stopped_batch_is_not_live(self):
         slave.PROCESSING_BATCH_IDS["b1"] = {"batch": {"id": "b1"}}
         self.assertTrue(slave._batch_is_live("b1"))
+        # Tombstone must not block a live PROCESSING restart (same root
+        # re-handed after leftover shed).
         slave._STOPPED_BATCH_IDS["b1"] = slave.now()
-        self.assertFalse(slave._batch_is_live("b1"))
+        self.assertTrue(slave._batch_is_live("b1"))
         slave.PROCESSING_BATCH_IDS.pop("b1", None)
         self.assertFalse(slave._batch_is_live("b1"))
+
+    @patch.object(slave, "_status_update_progress")
+    @patch.object(slave, "run_tig_runtime", return_value=False)
+    def test_process_nonces_requeues_incomplete_if_still_processing(self, _run, _status):
+        q = Queue()
+        q.put(7)
+        slave.PROCESSING_BATCH_IDS["b1"] = {
+            "batch": {"id": "b1", "num_nonces": 2, "start_nonce": 7, "settings": {}},
+            "q": q,
+            "finished": set(),
+            "so_path": "x",
+            "ptx_path": None,
+            "start": 1,
+        }
+        slave.process_nonces("/tmp")
+        self.assertIn("b1", slave.PROCESSING_BATCH_IDS)
+        self.assertEqual(q.get_nowait(), 7)
+        self.assertEqual(slave.PROCESSING_BATCH_IDS["b1"]["finished"], set())
+
+    @patch.object(slave, "_status_update_progress")
+    @patch.object(slave, "run_tig_runtime", return_value=False)
+    def test_process_nonces_drops_incomplete_after_stop(self, _run, _status):
+        q = Queue()
+        q.put(7)
+        slave.PROCESSING_BATCH_IDS["b1"] = {
+            "batch": {"id": "b1", "num_nonces": 2, "start_nonce": 7, "settings": {}},
+            "q": q,
+            "finished": set(),
+            "so_path": "x",
+            "ptx_path": None,
+            "start": 1,
+        }
+
+        def _stop_then_false(*_a, **_k):
+            slave.PROCESSING_BATCH_IDS.pop("b1", None)
+            return False
+
+        _run.side_effect = _stop_then_false
+        slave.process_nonces("/tmp")
+        self.assertNotIn("b1", slave.PROCESSING_BATCH_IDS)
+        self.assertTrue(q.empty())
+
+    def test_merkle_requeues_orphaned_nonces(self):
+        q = Queue()
+        slave.PROCESSING_BATCH_IDS["b1"] = {
+            "batch": {
+                "id": "b1",
+                "num_nonces": 3,
+                "start_nonce": 10,
+                "settings": {},
+            },
+            "q": q,
+            "finished": {10},
+            "start": 1,
+        }
+        with patch.object(slave.time, "sleep", return_value=None):
+            slave.compute_merkle_roots("/tmp")
+        self.assertIn("b1", slave.PROCESSING_BATCH_IDS)
+        recovered = {q.get_nowait(), q.get_nowait()}
+        self.assertEqual(recovered, {11, 12})
+        self.assertTrue(q.empty())
 
     @patch.object(slave, "_challenge_has_runtimes", return_value=False)
     @patch.object(slave, "_signal_container_runtimes", return_value=[])
