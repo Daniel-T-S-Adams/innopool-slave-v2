@@ -12,6 +12,9 @@ mkdir -p data/algorithms data/results
 docker compose up -d --build
 ```
 
+A plain `docker compose up` starts the slave plus CPU runtimes only. GPU
+runtimes use the `gpu` profile and need the NVIDIA toolkit.
+
 Dashboard: [http://localhost:8787](http://localhost:8787)  
 (Change `DASHBOARD_HOST_PORT` in `.env` if that port is taken.)
 
@@ -26,14 +29,14 @@ Dashboard: [http://localhost:8787](http://localhost:8787)
 CPU challenges match the typical InnoPool `pool-cpu-*` route (`c001/c002/c003/c007/c008`).
 
 GPU challenges (`vector_search`, `hypergraph`, `neuralnet_optimizer`) are in the same
-compose file. Start only the services you need (Join-page `install.sh` does this for you):
+compose file under the `gpu` profile. Join-page `install.sh` starts the right set.
 
 ```bash
-# CPU only
-docker compose up -d --build slave satisfiability vehicle_routing knapsack job_scheduling energy_arbitrage
+# CPU only (default — no NVIDIA runtime)
+docker compose up -d --build
 
 # GPU only (needs NVIDIA Container Toolkit)
-docker compose up -d --build slave vector_search hypergraph neuralnet_optimizer
+docker compose --profile gpu up -d --build slave vector_search hypergraph neuralnet_optimizer
 ```
 
 Prefer the pool Join-page one-liner over manual clone when onboarding members.
