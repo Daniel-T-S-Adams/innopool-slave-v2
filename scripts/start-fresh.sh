@@ -86,13 +86,42 @@ EOF
 
 sync_repo
 
+wait_for_named_containers() {
+  local timeout="${CONTAINER_WAIT_SEC:-180}"
+  local deadline=$((SECONDS + timeout))
+  local name missing names
+  echo "==> Waiting for challenge containers: $*"
+  while (( SECONDS < deadline )); do
+    missing=""
+    names="$($dcmd ps --format '{{.Names}}' 2>/dev/null || true)"
+    for name in "$@"; do
+      if ! printf '%s\n' "$names" | grep -Fxq "$name"; then
+        missing="${missing} ${name}"
+      fi
+    done
+    if [[ -z "${missing// }" ]]; then
+      echo "==> Challenge containers are up"
+      return 0
+    fi
+    echo "    still waiting:${missing}"
+    sleep 2
+  done
+  echo "WARN: timed out waiting for challenge containers:${missing:- $*}" >&2
+  return 1
+}
+
 echo "==> Pulling challenge runtime images"
 # shellcheck disable=SC2086
 $dcmd compose pull $pull_services || true
 
-echo "==> Recreating stack from pulled/built images"
+echo "==> Recreating challenge containers first (slave must not poll yet)"
 # shellcheck disable=SC2086
-$dcmd compose up -d --build --force-recreate --pull missing $services
+$dcmd compose up -d --build --force-recreate --pull missing $pull_services
+# shellcheck disable=SC2086
+wait_for_named_containers $pull_services || true
+
+echo "==> Starting slave after challenge containers are listed"
+$dcmd compose up -d --build --force-recreate --pull missing slave
 
 enable_boot_unit
 

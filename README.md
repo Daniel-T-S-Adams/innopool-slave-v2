@@ -77,7 +77,7 @@ If you already run stock `tig-benchmarker`, you can still copy `main.py` + `dash
 
 ## Version
 
-See `VERSION` (currently `0.1.18`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
+See `VERSION` (currently `0.1.21`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
 
 After a host crash, do not let Docker auto-start the old containers. Challenge
 runtimes use `restart: "no"`. `scripts/start-fresh.sh` pulls images and
@@ -92,5 +92,7 @@ that still has a live batch. `/get-batches` is a capped slice — empty
 polls keep in-flight work. A non-empty shrink stops leftover **roots**
 master already released; in-flight **proofs** stay.
 
-Missing challenge containers are reported to the master as infrastructure errors (so the
-assignment is released) instead of silently re-queuing while the slave keeps heartbeating.
+Missing challenge containers wait up to `INNOPOOL_CONTAINER_WAIT_SEC` (default 120s)
+so a reboot does not look like a dead box. After that wait the assignment is
+released. Master does not quarantine on this error. `start-fresh.sh` starts
+challenge containers and waits for their names before starting the slave.

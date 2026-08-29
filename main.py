@@ -74,6 +74,10 @@ _CPU_CHALLENGES = (
     "job_scheduling",
     "energy_arbitrage",
 )
+# Reboot/compose race: challenge containers come up after the slave.
+# Wait this long before reporting a miss to master.
+CONTAINER_WAIT_SEC = float(os.getenv("INNOPOOL_CONTAINER_WAIT_SEC", "120"))
+_CONTAINER_MISS_SINCE = {}
 
 PENDING_BATCH_IDS = set()
 PROCESSING_BATCH_IDS = {}
@@ -572,6 +576,53 @@ def _managed_challenges():
     other profile's leftover runtimes.
     """
     return _GPU_RUNTIME_CONTAINERS if _is_gpu_slave() else _CPU_CHALLENGES
+
+
+def _running_container_names():
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            text=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return set()
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
+def _challenge_container_up(name: str) -> bool:
+    return str(name or "") in _running_container_names()
+
+
+def _wait_for_managed_containers(timeout=None) -> bool:
+    """Block startup until this profile's challenge containers exist."""
+    needed = _managed_challenges()
+    limit = CONTAINER_WAIT_SEC if timeout is None else float(timeout)
+    deadline = time.time() + max(0.0, limit)
+    while time.time() < deadline:
+        have = _running_container_names()
+        missing = [n for n in needed if n not in have]
+        if not missing:
+            return True
+        logger.info("waiting for challenge containers: %s", ",".join(missing))
+        time.sleep(2)
+    have = _running_container_names()
+    missing = [n for n in needed if n not in have]
+    if missing:
+        logger.warning("starting with missing challenge containers: %s", ",".join(missing))
+        return False
+    return True
+
+
+def _should_fail_missing_container(batch_id: str, challenge: str) -> bool:
+    """True only after a bounded wait. Instant fail quarantines a rebooting box."""
+    if _challenge_container_up(challenge):
+        _CONTAINER_MISS_SINCE.pop(batch_id, None)
+        return False
+    started = _CONTAINER_MISS_SINCE.get(batch_id)
+    if started is None:
+        _CONTAINER_MISS_SINCE[batch_id] = time.time()
+        return False
+    return (time.time() - started) >= CONTAINER_WAIT_SEC
 
 
 def _cmdline_is_runtime(cmd: str, rand_hash=None) -> bool:
@@ -1212,15 +1263,25 @@ def process_batch(algorithms_dir, results_dir):
     with open(f"{results_dir}/{batch_id}/batch.json") as f:
         batch = json.load(f)
 
-    containers = set(subprocess.check_output(["docker", "ps", "--format", "{{.Names}}"], text=True).splitlines())
-    if batch["challenge"] not in containers:
+    if not _challenge_container_up(batch["challenge"]):
+        if not _should_fail_missing_container(batch_id, batch["challenge"]):
+            logger.warning(
+                "challenge container %s not up yet; waiting up to %.0fs for %s",
+                batch["challenge"],
+                CONTAINER_WAIT_SEC,
+                batch_id,
+            )
+            PENDING_BATCH_IDS.add(batch_id)
+            time.sleep(2)
+            return
         msg = (
             f"Challenge container {batch['challenge']} not found. "
             f"Did you start it with 'docker-compose up {batch['challenge']}'?"
         )
         logger.error(f"Error processing batch {batch_id}: {msg}")
-        # Report to master so assignment is released / slave quarantined.
-        # Do not silent-requeue: that heartbeats while warehousing the root forever.
+        _CONTAINER_MISS_SINCE.pop(batch_id, None)
+        # After the wait, report so the assignment is released. Master must
+        # not quarantine this — a reboot race is not a dead box.
         with open(f"{results_dir}/{batch_id}/result.json", "w") as f:
             json.dump({"error": msg}, f)
         READY_BATCH_IDS.add(batch_id)
@@ -1515,6 +1576,7 @@ def main():
     print(f"  Dashboard: http://{DASHBOARD_HOST}:{DASHBOARD_PORT}")
 
     os.makedirs(algorithms_dir, exist_ok=True)
+    _wait_for_managed_containers()
     _reap_orphan_runtimes("startup")
     _start_dashboard_server(num_workers)
     if _is_gpu_slave():
