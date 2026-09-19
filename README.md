@@ -8,7 +8,7 @@ git clone https://github.com/rootztigmod/innopool-slave.git
 cd innopool-slave
 cp .env.example .env
 # edit .env — at least SLAVE_NAME, NUM_WORKERS
-mkdir -p data/algorithms data/results
+mkdir -p data/algorithms data/results data/audit
 docker compose up -d --build
 ```
 
@@ -25,6 +25,7 @@ Dashboard: [http://localhost:8787](http://localhost:8787)
 | `slave` | Custom worker (`main.py`) + dashboard on `:8787` |
 | Challenge runtimes | `satisfiability`, `vehicle_routing`, `knapsack`, `job_scheduling`, `energy_arbitrage` |
 | Telemetry | Sent on every `/get-batches` (see `TELEMETRY.md`) |
+| Audit copies | `data/audit/<batch>/` — the leaves the master asked to re-check, kept `AUDIT_TTL` (30 d) |
 
 CPU challenges match the typical InnoPool `pool-cpu-*` route (`c001/c002/c003/c007/c008`).
 
@@ -47,6 +48,18 @@ Prefer the pool Join-page one-liner over manual clone when onboarding members.
 2. **`MASTER_IP` / `MASTER_PORT`** — InnoPool master (defaults to `master.innopool.co.uk:80`).
 3. **`NUM_WORKERS`** — roughly your vCPU count.
 4. **`TIG_VERSION`** — TIG runtime image tag (`latest` or a pinned release).
+5. **`AUDIT_DIR` / `AUDIT_TTL`** — where audit copies live (`./data/audit`) and how long they are kept (seconds, default 30 days). Optional; defaults work.
+
+## Quality audit
+
+After each accepted root the master may reply with `audit_nonces`: a few nonces
+it wants to re-score with `tig-verifier`. The slave copies those `{nonce}.json`
+files to `AUDIT_DIR`, posts them to `/submit-batch-audit/<batch>` on its own
+thread, and re-queues anything unsent after a restart. Nothing is re-solved and
+the extra traffic is a few KB per batch.
+
+Keep `AUDIT_DIR`: if TIG ever disputes a benchmark you computed, those files are
+your proof the posted quality was what your machine actually produced.
 
 ## Useful commands
 
@@ -77,7 +90,7 @@ If you already run stock `tig-benchmarker`, you can still copy `main.py` + `dash
 
 ## Version
 
-See `VERSION` (currently `0.1.21`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
+See `VERSION` (currently `0.1.22`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
 
 After a host crash, do not let Docker auto-start the old containers. Challenge
 runtimes use `restart: "no"`. `scripts/start-fresh.sh` pulls images and
