@@ -61,6 +61,28 @@ the extra traffic is a few KB per batch.
 Keep `AUDIT_DIR`: if TIG ever disputes a benchmark you computed, those files are
 your proof the posted quality was what your machine actually produced.
 
+## Updating
+
+**Installed from the Join page?** Re-run the same one-liner you installed with.
+It pulls this repo into `~/innopool-slave-cpu` / `~/innopool-slave-gpu`, rewrites
+`.env` from your fleet token (same slave name), rebuilds, and recreates the
+containers. It recomputes `NUM_WORKERS` from your core count, so re-apply any
+hand-tuned value afterwards.
+
+**Cloned by hand?** The image is built from this repo, so an update is a pull
+and a rebuild. Nothing in `.env` needs to change; new settings have defaults.
+
+```bash
+cd innopool-slave-cpu   # or innopool-slave / innopool-slave-gpu
+git pull
+sudo docker compose up -d --build slave                   # CPU
+# sudo docker compose --profile gpu up -d --build slave   # GPU
+sudo docker compose logs -f slave                         # "Slave Version: 0.1.22"
+```
+
+Work in flight is lost when the slave container restarts, so do it between
+batches if you can. The challenge runtimes keep running and do not need a rebuild.
+
 ## Useful commands
 
 ```bash
