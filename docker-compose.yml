@@ -10,8 +10,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${ALGORITHMS_DIR}:/app/algorithms
       - ${RESULTS_DIR}:/app/results
-      # Audit copies of the leaves the master spot-checks. Kept AUDIT_TTL
-      # seconds (default 30 days) — your own evidence if TIG disputes a batch.
+      # Archive of every finished batch's leaves (gzipped). Kept AUDIT_TTL
+      # seconds (default 14 days) — the master fetches from it when TIG
+      # reports a nonce, and it is your own evidence if a batch is disputed.
       - ${AUDIT_DIR:-./data/audit}:/app/audit
     environment:
       - VERBOSE=${VERBOSE:-}
@@ -19,7 +20,7 @@ services:
       - MASTER_PORT=${MASTER_PORT}
       - MASTER_IP=${MASTER_IP}
       - TTL=${TTL}
-      - AUDIT_TTL=${AUDIT_TTL:-2592000}
+      - AUDIT_TTL=${AUDIT_TTL:-1209600}
       - NUM_WORKERS=${NUM_WORKERS}
       - DASHBOARD_PORT=8787
       - DASHBOARD_HOST=0.0.0.0

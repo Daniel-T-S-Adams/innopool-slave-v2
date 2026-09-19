@@ -87,16 +87,26 @@ READY_BATCH_IDS = set()
 FINISHED_ROOT_BATCH_IDS = {}
 FINISHED_PROOF_BATCH_IDS = {}
 
-# Quality audit. After a root is accepted the master's ack may carry
-# ``audit_nonces``: original {nonce}.json leaves it wants to re-score with
-# tig-verifier. We copy those leaves to AUDIT_DIR (long TTL, our own evidence
-# if TIG ever disputes a benchmark) and push them to /submit-batch-audit.
+# Quality audit. Every finished root batch is archived to
+# AUDIT_DIR/<batch>/leaves.json.gz (all leaves + leaf hashes + merkle root)
+# and kept AUDIT_TTL. Two things read it:
+#   * the root ack's ``audit_nonces`` — the master's random sample, pushed to
+#     /submit-batch-audit right away;
+#   * ``X-Innopool-Audit-Fetch`` on a get-batches reply — the master asking
+#     for specific nonces later (a TIG report). We answer with the leaf and
+#     its merkle branch so the master can check it against the root we
+#     committed at submit time.
 AUDIT_DIR = os.getenv("AUDIT_DIR_IN_CONTAINER", "audit")
-# Seconds to keep audit copies. Default 30 days; TIG disputes arrive late.
-AUDIT_TTL = int(os.getenv("AUDIT_TTL", str(30 * 24 * 3600)))
-# Give up pushing after this long (master marks the request 'missing' at ~30m).
+# Seconds to keep archived leaves. Default 14 days.
+AUDIT_TTL = int(os.getenv("AUDIT_TTL", str(14 * 24 * 3600)))
+# Give up pushing a *sample* after this long (master marks it 'missing' at ~30m).
 AUDIT_PUSH_DEADLINE_MS = int(os.getenv("AUDIT_PUSH_DEADLINE_MS", str(45 * 60 * 1000)))
-PENDING_AUDITS = {}  # batch_id -> {"nonces": [...], "requested_at": ms, "attempts": n}
+# Fetch requests are answered as long as we hold the archive.
+AUDIT_FETCH_DEADLINE_MS = int(os.getenv("AUDIT_FETCH_DEADLINE_MS", str(AUDIT_TTL * 1000)))
+AUDIT_ARCHIVE = "leaves.json.gz"
+# key -> {"batch_id", "audit_id", "nonces", "requested_at", "deadline_ms", "attempts"}
+PENDING_AUDITS = {}
+_AUDIT_FETCH_SEEN = set()  # audit_ids already queued/answered this process
 _AUDIT_LOCK = Lock()
 
 _STATE_LOCK = Lock()
@@ -1082,22 +1092,31 @@ def compute_merkle_roots(results_dir):
         try:
             solution_quality = []
             hashes = []
+            leaves_by_nonce = {}
             for n in range(batch["start_nonce"], batch["start_nonce"] + batch["num_nonces"]):
                 with open(f"{results_dir}/{batch['id']}/{n}.json", "r") as f:
                     d = json.load(f)
                     solution_quality.append(d.pop("quality"))
+                    # from_dict pops keys from its input; hash a copy so the
+                    # archived leaf keeps its fields.
+                    leaves_by_nonce[n] = dict(d)
                     hashes.append(OutputData.from_dict(d).to_merkle_hash())
 
             merkle_tree = MerkleTree(hashes, batch["batch_size"])
+            merkle_root = merkle_tree.calc_merkle_root().to_str()
             with open(f"{results_dir}/{batch['id']}/hashes.zlib", "wb") as f:
                 hashes = [h.to_str() for h in hashes]
                 f.write(zlib.compress(json.dumps(hashes).encode()))
             with open(f"{results_dir}/{batch['id']}/result.json", "w") as f:
                 result = {
                     "solution_quality": solution_quality,
-                    "merkle_root": merkle_tree.calc_merkle_root().to_str(),
+                    "merkle_root": merkle_root,
                 }
                 json.dump(result, f)
+            try:
+                archive_batch_leaves(batch, leaves_by_nonce, solution_quality, hashes, merkle_root)
+            except Exception as exc:
+                logger.warning("audit: archiving leaves for %s failed: %s", batch["id"], exc)
             logger.info(f"batch {batch['id']} done, took: {now() - start}ms")
             _status_update_progress(batch["id"], batch["num_nonces"], batch["num_nonces"])
             READY_BATCH_IDS.add(batch["id"])
@@ -1141,47 +1160,121 @@ def _audit_batch_dir(batch_id):
     return os.path.join(AUDIT_DIR, batch_id)
 
 
-def stage_audit_leaves(batch_id, nonces, results_dir):
-    """Copy the requested leaves out of the TTL'd results dir into AUDIT_DIR.
+def _audit_archive_path(batch_id):
+    return os.path.join(_audit_batch_dir(batch_id), AUDIT_ARCHIVE)
 
-    Returns the nonces that were actually available. Writes request.json so a
-    slave restart can still push them.
+
+def archive_batch_leaves(batch, leaves_by_nonce, qualities, hashes, merkle_root):
+    """Keep every leaf of a finished root batch, gzipped, for AUDIT_TTL.
+
+    Written once, right after the merkle root, while all {nonce}.json still
+    exist. The leaf hashes let us rebuild any merkle branch later, so a leaf
+    handed to the master days after the fact can be checked against the root
+    we committed at submit time.
+    """
+    import gzip
+
+    batch_id = batch["id"]
+    d = _audit_batch_dir(batch_id)
+    os.makedirs(d, exist_ok=True)
+    start = int(batch["start_nonce"])
+    payload = {
+        "batch_id": batch_id,
+        "start_nonce": start,
+        "batch_size": int(batch["batch_size"]),
+        "num_nonces": int(batch["num_nonces"]),
+        "merkle_root": merkle_root,
+        "hashes": list(hashes),
+        "qualities": list(qualities),
+        "leaves": {str(n): leaf for n, leaf in leaves_by_nonce.items()},
+        "archived_at": now(),
+    }
+    tmp = _audit_archive_path(batch_id) + ".tmp"
+    with gzip.open(tmp, "wt", compresslevel=6) as f:
+        json.dump(payload, f, separators=(",", ":"))
+    os.replace(tmp, _audit_archive_path(batch_id))
+    logger.debug("audit: archived %s leaves of batch %s", len(leaves_by_nonce), batch_id)
+
+
+def _load_archive(batch_id):
+    import gzip
+
+    path = _audit_archive_path(batch_id)
+    if not os.path.exists(path):
+        return None
+    with gzip.open(path, "rt") as f:
+        return json.load(f)
+
+
+def has_audit_archive(batch_id):
+    return os.path.exists(_audit_archive_path(batch_id))
+
+
+def stage_audit_leaves(batch_id, nonces, results_dir):
+    """Make sure the requested leaves survive the results TTL.
+
+    Normally the whole batch is already archived by compute_merkle_roots and
+    this is a no-op. If the archive is missing (older slave, archive failure)
+    fall back to per-nonce copies so at least the sample is kept.
+    Returns the nonces we can serve.
     """
     if not nonces:
         return []
+    wanted = []
+    for n in nonces:
+        try:
+            wanted.append(int(n))
+        except Exception:
+            continue
+    archive = _load_archive(batch_id)
+    if archive is not None:
+        have = set(int(k) for k in archive.get("leaves", {}))
+        staged = [n for n in wanted if n in have]
+        for n in wanted:
+            if n not in have:
+                logger.warning("audit: batch %s nonce %s not in archive", batch_id, n)
+        return staged
     src_dir = f"{results_dir}/{batch_id}"
     dst_dir = _audit_batch_dir(batch_id)
     os.makedirs(dst_dir, exist_ok=True)
     staged = []
-    for n in nonces:
-        try:
-            n = int(n)
-        except Exception:
-            continue
+    for n in wanted:
         src = f"{src_dir}/{n}.json"
         if not os.path.exists(src):
             logger.warning("audit: batch %s nonce %s file missing; cannot stage", batch_id, n)
             continue
         shutil.copyfile(src, f"{dst_dir}/{n}.json")
         staged.append(n)
-    with open(f"{dst_dir}/request.json", "w") as f:
-        json.dump(
-            {
-                "batch_id": batch_id,
-                "nonces": [int(n) for n in nonces],
-                "staged": staged,
-                "requested_at": now(),
-                "sent": False,
-            },
-            f,
-        )
     return staged
 
 
 def load_audit_leaves(batch_id, nonces):
-    """Read staged leaves. The slave's own 'quality' key is stripped; the
-    master recomputes it and compares to what we posted."""
+    """Leaves for the master, each with its merkle branch when the archive is
+    available. Our own 'quality' key is stripped; the master recomputes it."""
     leaves = []
+    archive = _load_archive(batch_id)
+    if archive is not None:
+        try:
+            tree = MerkleTree([MerkleHash.from_str(h) for h in archive["hashes"]], int(archive["batch_size"]))
+        except Exception as exc:
+            logger.warning("audit: cannot rebuild merkle tree for %s: %s", batch_id, exc)
+            tree = None
+        start = int(archive["start_nonce"])
+        for n in nonces:
+            n = int(n)
+            d = archive.get("leaves", {}).get(str(n))
+            if d is None:
+                continue
+            d = dict(d)
+            d.pop("quality", None)
+            d["nonce"] = n
+            if tree is not None:
+                try:
+                    d["branch"] = tree.calc_merkle_branch(branch_idx=n - start).to_str()
+                except Exception as exc:
+                    logger.warning("audit: branch for %s nonce %s failed: %s", batch_id, n, exc)
+            leaves.append(d)
+        return leaves
     dst_dir = _audit_batch_dir(batch_id)
     for n in nonces:
         path = f"{dst_dir}/{int(n)}.json"
@@ -1195,17 +1288,16 @@ def load_audit_leaves(batch_id, nonces):
     return leaves
 
 
-def queue_audit(batch_id, nonces, results_dir):
-    staged = stage_audit_leaves(batch_id, nonces, results_dir)
-    if not staged:
-        return
-    with _AUDIT_LOCK:
-        PENDING_AUDITS[batch_id] = {"nonces": staged, "requested_at": now(), "attempts": 0}
-    logger.info("audit: master asked for %s leaf(s) of batch %s: %s", len(staged), batch_id, staged)
+def _write_audit_request(batch_id, key, entry):
+    """Persist a pending push so a restart can resume it."""
+    d = _audit_batch_dir(batch_id)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, f"request-{key.replace('#', '-')}.json"), "w") as f:
+        json.dump(dict(entry, key=key, sent=False), f)
 
 
-def _mark_audit_sent(batch_id):
-    path = f"{_audit_batch_dir(batch_id)}/request.json"
+def _mark_audit_sent(batch_id, key):
+    path = os.path.join(_audit_batch_dir(batch_id), f"request-{key.replace('#', '-')}.json")
     try:
         with open(path, "r") as f:
             d = json.load(f)
@@ -1217,104 +1309,184 @@ def _mark_audit_sent(batch_id):
         pass
 
 
+def _queue_audit_entry(batch_id, nonces, *, audit_id=None, deadline_ms=AUDIT_PUSH_DEADLINE_MS, results_dir=None):
+    staged = stage_audit_leaves(batch_id, nonces, results_dir or "results")
+    key = f"{batch_id}#{audit_id}" if audit_id is not None else batch_id
+    entry = {
+        "batch_id": batch_id,
+        "audit_id": audit_id,
+        "nonces": staged,
+        "missing": [int(n) for n in nonces if int(n) not in set(staged)],
+        "requested_at": now(),
+        "deadline_ms": int(deadline_ms),
+        "attempts": 0,
+    }
+    with _AUDIT_LOCK:
+        PENDING_AUDITS[key] = entry
+    _write_audit_request(batch_id, key, entry)
+    return staged
+
+
+def queue_audit(batch_id, nonces, results_dir):
+    """Root ack sample: the master picked these nonces after seeing our qualities."""
+    staged = _queue_audit_entry(batch_id, nonces, results_dir=results_dir)
+    logger.info("audit: master asked for %s leaf(s) of batch %s: %s", len(staged), batch_id, staged)
+
+
+def queue_audit_fetches(items):
+    """``X-Innopool-Audit-Fetch`` from a get-batches reply: the master wants
+    specific archived nonces (usually because TIG reported one)."""
+    if not isinstance(items, list):
+        return
+    for item in items:
+        try:
+            audit_id = int(item["audit_id"])
+            batch_id = str(item["batch_id"])
+            nonces = [int(n) for n in item.get("nonces") or []]
+        except Exception:
+            continue
+        with _AUDIT_LOCK:
+            if audit_id in _AUDIT_FETCH_SEEN:
+                continue
+            _AUDIT_FETCH_SEEN.add(audit_id)
+        staged = _queue_audit_entry(batch_id, nonces, audit_id=audit_id, deadline_ms=AUDIT_FETCH_DEADLINE_MS)
+        if staged:
+            logger.info("audit: master fetch #%s for batch %s nonces %s", audit_id, batch_id, staged)
+        else:
+            logger.warning("audit: master fetch #%s for batch %s but no archive; reporting unavailable", audit_id, batch_id)
+
+
+def _parse_audit_fetch_header(value):
+    if not value:
+        return []
+    try:
+        items = json.loads(value)
+    except Exception:
+        logger.warning("audit: bad X-Innopool-Audit-Fetch header")
+        return []
+    return items if isinstance(items, list) else []
+
+
 def requeue_unsent_audits():
-    """On restart, re-queue staged-but-unsent audits that are still fresh."""
+    """On restart, re-queue persisted-but-unsent pushes that are still fresh."""
     if not os.path.isdir(AUDIT_DIR):
         return
     for batch_id in os.listdir(AUDIT_DIR):
-        path = f"{_audit_batch_dir(batch_id)}/request.json"
-        if not os.path.exists(path):
+        d = _audit_batch_dir(batch_id)
+        if not os.path.isdir(d):
             continue
-        try:
-            with open(path, "r") as f:
-                d = json.load(f)
-        except Exception:
-            continue
-        if d.get("sent"):
-            continue
-        requested_at = int(d.get("requested_at") or 0)
-        if now() - requested_at > AUDIT_PUSH_DEADLINE_MS:
-            continue
-        with _AUDIT_LOCK:
-            PENDING_AUDITS[batch_id] = {
-                "nonces": [int(n) for n in d.get("staged") or d.get("nonces") or []],
+        for name in os.listdir(d):
+            if not (name.startswith("request") and name.endswith(".json")):
+                continue
+            try:
+                with open(os.path.join(d, name), "r") as f:
+                    r = json.load(f)
+            except Exception:
+                continue
+            if r.get("sent"):
+                continue
+            requested_at = int(r.get("requested_at") or 0)
+            deadline = int(r.get("deadline_ms") or AUDIT_PUSH_DEADLINE_MS)
+            if now() - requested_at > deadline:
+                continue
+            key = r.get("key") or batch_id
+            audit_id = r.get("audit_id")
+            entry = {
+                "batch_id": batch_id,
+                "audit_id": audit_id,
+                "nonces": [int(n) for n in r.get("nonces") or r.get("staged") or []],
+                "missing": [int(n) for n in r.get("missing") or []],
                 "requested_at": requested_at,
+                "deadline_ms": deadline,
                 "attempts": 0,
             }
-        logger.info("audit: re-queued unsent leaves for batch %s", batch_id)
+            with _AUDIT_LOCK:
+                PENDING_AUDITS[key] = entry
+                if audit_id is not None:
+                    _AUDIT_FETCH_SEEN.add(int(audit_id))
+            logger.info("audit: re-queued unsent leaves for %s", key)
 
 
 def send_audit_leaves(headers, master_ip, master_port):
-    """Push staged leaves for every pending audit. Separate thread so a slow
-    master never delays the next root submit."""
+    """Push leaves for every pending audit. Separate thread so a slow master
+    never delays the next root submit."""
     with _AUDIT_LOCK:
-        batch_ids = list(PENDING_AUDITS.keys())
-    if not batch_ids:
+        keys = list(PENDING_AUDITS.keys())
+    if not keys:
         time.sleep(1)
         return
-    for batch_id in batch_ids:
+    for key in keys:
         with _AUDIT_LOCK:
-            entry = PENDING_AUDITS.get(batch_id)
+            entry = PENDING_AUDITS.get(key)
         if entry is None:
             continue
-        if now() - entry["requested_at"] > AUDIT_PUSH_DEADLINE_MS:
-            logger.warning("audit: giving up pushing leaves for %s (deadline); copies kept in %s", batch_id, AUDIT_DIR)
+        batch_id = entry["batch_id"]
+        if now() - entry["requested_at"] > entry.get("deadline_ms", AUDIT_PUSH_DEADLINE_MS):
+            logger.warning("audit: giving up pushing leaves for %s (deadline); archive kept in %s", key, AUDIT_DIR)
             with _AUDIT_LOCK:
-                PENDING_AUDITS.pop(batch_id, None)
+                PENDING_AUDITS.pop(key, None)
             continue
         leaves = load_audit_leaves(batch_id, entry["nonces"])
+        body = {"leaves": leaves}
+        if entry.get("audit_id") is not None:
+            body["audit_id"] = int(entry["audit_id"])
         if not leaves:
-            with _AUDIT_LOCK:
-                PENDING_AUDITS.pop(batch_id, None)
-            continue
+            if entry.get("audit_id") is None:
+                with _AUDIT_LOCK:
+                    PENDING_AUDITS.pop(key, None)
+                continue
+            # A fetch we cannot serve: say so, so the master does not wait 24h.
+            body["unavailable"] = f"no archived leaves for nonces {entry.get('missing') or entry['nonces']}"
         submit_url = f"http://{master_ip}:{master_port}/submit-batch-audit/{batch_id}"
         try:
-            resp = requests.post(submit_url, headers=headers, json={"leaves": leaves}, timeout=60)
+            resp = requests.post(submit_url, headers=headers, json=body, timeout=60)
         except Exception as exc:
-            logger.warning("audit: post for %s failed: %s", batch_id, exc)
+            logger.warning("audit: post for %s failed: %s", key, exc)
             with _AUDIT_LOCK:
-                if batch_id in PENDING_AUDITS:
-                    PENDING_AUDITS[batch_id]["attempts"] += 1
+                if key in PENDING_AUDITS:
+                    PENDING_AUDITS[key]["attempts"] += 1
             time.sleep(2)
             continue
         if resp.status_code == 200:
-            logger.info("audit: delivered %s leaf(s) for batch %s", len(leaves), batch_id)
-            _mark_audit_sent(batch_id)
+            logger.info("audit: delivered %s leaf(s) for %s", len(leaves), key)
+            _mark_audit_sent(batch_id, key)
             with _AUDIT_LOCK:
-                PENDING_AUDITS.pop(batch_id, None)
+                PENDING_AUDITS.pop(key, None)
         elif resp.status_code in (400, 403):
-            # Malformed or not ours — retrying will not help. Keep the copies.
-            logger.error("audit: master rejected leaves for %s: %s %s", batch_id, resp.status_code, resp.text)
+            # Malformed or not ours — retrying will not help. Keep the archive.
+            logger.error("audit: master rejected leaves for %s: %s %s", key, resp.status_code, resp.text)
+            _mark_audit_sent(batch_id, key)
             with _AUDIT_LOCK:
-                PENDING_AUDITS.pop(batch_id, None)
+                PENDING_AUDITS.pop(key, None)
         else:
-            logger.warning("audit: status %s posting leaves for %s: %s", resp.status_code, batch_id, resp.text)
+            logger.warning("audit: status %s posting leaves for %s: %s", resp.status_code, key, resp.text)
             with _AUDIT_LOCK:
-                if batch_id in PENDING_AUDITS:
-                    PENDING_AUDITS[batch_id]["attempts"] += 1
+                if key in PENDING_AUDITS:
+                    PENDING_AUDITS[key]["attempts"] += 1
             time.sleep(2)
     time.sleep(1)
 
 
 def purge_audit_folders(ttl):
-    """Drop audit copies older than AUDIT_TTL. Runs rarely; nothing hot here."""
+    """Drop archives older than AUDIT_TTL. Runs rarely; nothing hot here."""
     if not os.path.isdir(AUDIT_DIR):
         time.sleep(60)
         return
     cutoff = now() - ttl * 1000
     for batch_id in os.listdir(AUDIT_DIR):
         d = _audit_batch_dir(batch_id)
-        path = f"{d}/request.json"
+        if not os.path.isdir(d):
+            continue
         try:
-            if os.path.exists(path):
-                with open(path, "r") as f:
-                    requested_at = int(json.load(f).get("requested_at") or 0)
+            archive = _audit_archive_path(batch_id)
+            if os.path.exists(archive):
+                created = int(os.path.getmtime(archive) * 1000)
             else:
-                requested_at = int(os.path.getmtime(d) * 1000)
+                created = int(os.path.getmtime(d) * 1000)
         except Exception:
-            requested_at = 0
-        if requested_at and requested_at < cutoff:
-            logger.info("audit: purging copies for batch %s", batch_id)
+            created = 0
+        if created and created < cutoff:
+            logger.info("audit: purging archive for batch %s", batch_id)
             shutil.rmtree(d, ignore_errors=True)
     time.sleep(300)
 
@@ -1630,6 +1802,12 @@ def poll_batches(headers, master_ip, master_port, results_dir, num_workers):
 
     if resp.status_code == 200:
         batches = resp.json()
+        # Master may ask for archived leaves (TIG report). Header so that
+        # older slaves, which only read the body, are unaffected.
+        try:
+            queue_audit_fetches(_parse_audit_fetch_header(resp.headers.get("X-Innopool-Audit-Fetch")))
+        except Exception as exc:
+            logger.warning("audit: fetch header handling failed: %s", exc)
         root_batch_ids = [batch["id"] for batch in batches if batch["sampled_nonces"] is None]
         proofs_batch_ids = [batch["id"] for batch in batches if batch["sampled_nonces"] is not None]
         # Master can re-hand already-submitted batches while a concurrent slot is

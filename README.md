@@ -25,7 +25,7 @@ Dashboard: [http://localhost:8787](http://localhost:8787)
 | `slave` | Custom worker (`main.py`) + dashboard on `:8787` |
 | Challenge runtimes | `satisfiability`, `vehicle_routing`, `knapsack`, `job_scheduling`, `energy_arbitrage` |
 | Telemetry | Sent on every `/get-batches` (see `TELEMETRY.md`) |
-| Audit copies | `data/audit/<batch>/` — the leaves the master asked to re-check, kept `AUDIT_TTL` (30 d) |
+| Audit archive | `data/audit/<batch>/leaves.json.gz` — every leaf of every finished batch, kept `AUDIT_TTL` (14 d) |
 
 CPU challenges match the typical InnoPool `pool-cpu-*` route (`c001/c002/c003/c007/c008`).
 
@@ -48,18 +48,26 @@ Prefer the pool Join-page one-liner over manual clone when onboarding members.
 2. **`MASTER_IP` / `MASTER_PORT`** — InnoPool master (defaults to `master.innopool.co.uk:80`).
 3. **`NUM_WORKERS`** — roughly your vCPU count.
 4. **`TIG_VERSION`** — TIG runtime image tag (`latest` or a pinned release).
-5. **`AUDIT_DIR` / `AUDIT_TTL`** — where audit copies live (`./data/audit`) and how long they are kept (seconds, default 30 days). Optional; defaults work.
+5. **`AUDIT_DIR` / `AUDIT_TTL`** — where the leaf archive lives (`./data/audit`) and how long batches are kept (seconds, default 14 days). Optional; defaults work. Disk use is a few MB per thousand batches.
 
 ## Quality audit
 
-After each accepted root the master may reply with `audit_nonces`: a few nonces
-it wants to re-score with `tig-verifier`. The slave copies those `{nonce}.json`
-files to `AUDIT_DIR`, posts them to `/submit-batch-audit/<batch>` on its own
-thread, and re-queues anything unsent after a restart. Nothing is re-solved and
-the extra traffic is a few KB per batch.
+When a batch's merkle root is computed, every leaf (`{nonce}.json`) plus the
+leaf hashes are written to `AUDIT_DIR/<batch>/leaves.json.gz` and kept
+`AUDIT_TTL` (14 days). Two things read that archive:
 
-Keep `AUDIT_DIR`: if TIG ever disputes a benchmark you computed, those files are
-your proof the posted quality was what your machine actually produced.
+- **Sample** — after each accepted root the master replies with `audit_nonces`,
+  a few nonces it wants to re-score with `tig-verifier`. The slave posts those
+  leaves to `/submit-batch-audit/<batch>` on its own thread within seconds.
+- **Fetch** — if TIG later reports a nonce, the master asks for it via an
+  `X-Innopool-Audit-Fetch` header on a normal `get-batches` reply. The slave
+  answers with the leaf and its merkle branch, which the master checks against
+  the root you committed at submit time, so a leaf cannot be altered after the
+  fact — and "I no longer have it" is visible too.
+
+Nothing is re-solved; traffic is a few KB per request. Unsent pushes are
+re-queued after a restart. Keep `AUDIT_DIR`: it is your proof the posted
+quality was what your machine actually produced.
 
 ## Updating
 
@@ -77,7 +85,7 @@ cd innopool-slave-cpu   # or innopool-slave / innopool-slave-gpu
 git pull
 sudo docker compose up -d --build slave                   # CPU
 # sudo docker compose --profile gpu up -d --build slave   # GPU
-sudo docker compose logs -f slave                         # "Slave Version: 0.1.22"
+sudo docker compose logs -f slave                         # "Slave Version: 0.1.23"
 ```
 
 Work in flight is lost when the slave container restarts, so do it between
@@ -112,7 +120,7 @@ If you already run stock `tig-benchmarker`, you can still copy `main.py` + `dash
 
 ## Version
 
-See `VERSION` (currently `0.1.22`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
+See `VERSION` (currently `0.1.23`). Reported to the master as `innopool-slave/<VERSION>` from the packaged file — no `.env` override.
 
 After a host crash, do not let Docker auto-start the old containers. Challenge
 runtimes use `restart: "no"`. `scripts/start-fresh.sh` pulls images and
