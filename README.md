@@ -59,7 +59,7 @@ leaf hashes are written to `AUDIT_DIR/<batch>/leaves.json.gz` and kept
 - **Sample** — after each accepted root the master replies with `audit_nonces`,
   a few nonces it wants to re-score with `tig-verifier`. The slave posts those
   leaves to `/submit-batch-audit/<batch>` on its own thread within seconds.
-- **Fetch** — if TIG later reports a nonce, the master asks for it via an
+- **Fetch** — if a nonce is later reported, the master asks for it via an
   `X-Innopool-Audit-Fetch` header on a normal `get-batches` reply. The slave
   answers with the leaf and its merkle branch, which the master checks against
   the root you committed at submit time, so a leaf cannot be altered after the

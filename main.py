@@ -1335,7 +1335,7 @@ def queue_audit(batch_id, nonces, results_dir):
 
 def queue_audit_fetches(items):
     """``X-Innopool-Audit-Fetch`` from a get-batches reply: the master wants
-    specific archived nonces (usually because TIG reported one)."""
+    specific archived nonces (usually because someone reported one)."""
     if not isinstance(items, list):
         return
     for item in items:
