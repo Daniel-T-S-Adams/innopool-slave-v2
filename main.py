@@ -87,6 +87,18 @@ READY_BATCH_IDS = set()
 FINISHED_ROOT_BATCH_IDS = {}
 FINISHED_PROOF_BATCH_IDS = {}
 
+# Quality audit. After a root is accepted the master's ack may carry
+# ``audit_nonces``: original {nonce}.json leaves it wants to re-score with
+# tig-verifier. We copy those leaves to AUDIT_DIR (long TTL, our own evidence
+# if TIG ever disputes a benchmark) and push them to /submit-batch-audit.
+AUDIT_DIR = os.getenv("AUDIT_DIR_IN_CONTAINER", "audit")
+# Seconds to keep audit copies. Default 30 days; TIG disputes arrive late.
+AUDIT_TTL = int(os.getenv("AUDIT_TTL", str(30 * 24 * 3600)))
+# Give up pushing after this long (master marks the request 'missing' at ~30m).
+AUDIT_PUSH_DEADLINE_MS = int(os.getenv("AUDIT_PUSH_DEADLINE_MS", str(45 * 60 * 1000)))
+PENDING_AUDITS = {}  # batch_id -> {"nonces": [...], "requested_at": ms, "attempts": n}
+_AUDIT_LOCK = Lock()
+
 _STATE_LOCK = Lock()
 _DOWNLOADING = 0
 _LAST_IDLE_GAP_MS = 0
@@ -1125,6 +1137,188 @@ def purge_folders(output_path, ttl):
         FINISHED_PROOF_BATCH_IDS.pop(batch_id, None)
 
 
+def _audit_batch_dir(batch_id):
+    return os.path.join(AUDIT_DIR, batch_id)
+
+
+def stage_audit_leaves(batch_id, nonces, results_dir):
+    """Copy the requested leaves out of the TTL'd results dir into AUDIT_DIR.
+
+    Returns the nonces that were actually available. Writes request.json so a
+    slave restart can still push them.
+    """
+    if not nonces:
+        return []
+    src_dir = f"{results_dir}/{batch_id}"
+    dst_dir = _audit_batch_dir(batch_id)
+    os.makedirs(dst_dir, exist_ok=True)
+    staged = []
+    for n in nonces:
+        try:
+            n = int(n)
+        except Exception:
+            continue
+        src = f"{src_dir}/{n}.json"
+        if not os.path.exists(src):
+            logger.warning("audit: batch %s nonce %s file missing; cannot stage", batch_id, n)
+            continue
+        shutil.copyfile(src, f"{dst_dir}/{n}.json")
+        staged.append(n)
+    with open(f"{dst_dir}/request.json", "w") as f:
+        json.dump(
+            {
+                "batch_id": batch_id,
+                "nonces": [int(n) for n in nonces],
+                "staged": staged,
+                "requested_at": now(),
+                "sent": False,
+            },
+            f,
+        )
+    return staged
+
+
+def load_audit_leaves(batch_id, nonces):
+    """Read staged leaves. The slave's own 'quality' key is stripped; the
+    master recomputes it and compares to what we posted."""
+    leaves = []
+    dst_dir = _audit_batch_dir(batch_id)
+    for n in nonces:
+        path = f"{dst_dir}/{int(n)}.json"
+        if not os.path.exists(path):
+            continue
+        with open(path, "r") as f:
+            d = json.load(f)
+        d.pop("quality", None)
+        d["nonce"] = int(n)
+        leaves.append(d)
+    return leaves
+
+
+def queue_audit(batch_id, nonces, results_dir):
+    staged = stage_audit_leaves(batch_id, nonces, results_dir)
+    if not staged:
+        return
+    with _AUDIT_LOCK:
+        PENDING_AUDITS[batch_id] = {"nonces": staged, "requested_at": now(), "attempts": 0}
+    logger.info("audit: master asked for %s leaf(s) of batch %s: %s", len(staged), batch_id, staged)
+
+
+def _mark_audit_sent(batch_id):
+    path = f"{_audit_batch_dir(batch_id)}/request.json"
+    try:
+        with open(path, "r") as f:
+            d = json.load(f)
+        d["sent"] = True
+        d["sent_at"] = now()
+        with open(path, "w") as f:
+            json.dump(d, f)
+    except Exception:
+        pass
+
+
+def requeue_unsent_audits():
+    """On restart, re-queue staged-but-unsent audits that are still fresh."""
+    if not os.path.isdir(AUDIT_DIR):
+        return
+    for batch_id in os.listdir(AUDIT_DIR):
+        path = f"{_audit_batch_dir(batch_id)}/request.json"
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r") as f:
+                d = json.load(f)
+        except Exception:
+            continue
+        if d.get("sent"):
+            continue
+        requested_at = int(d.get("requested_at") or 0)
+        if now() - requested_at > AUDIT_PUSH_DEADLINE_MS:
+            continue
+        with _AUDIT_LOCK:
+            PENDING_AUDITS[batch_id] = {
+                "nonces": [int(n) for n in d.get("staged") or d.get("nonces") or []],
+                "requested_at": requested_at,
+                "attempts": 0,
+            }
+        logger.info("audit: re-queued unsent leaves for batch %s", batch_id)
+
+
+def send_audit_leaves(headers, master_ip, master_port):
+    """Push staged leaves for every pending audit. Separate thread so a slow
+    master never delays the next root submit."""
+    with _AUDIT_LOCK:
+        batch_ids = list(PENDING_AUDITS.keys())
+    if not batch_ids:
+        time.sleep(1)
+        return
+    for batch_id in batch_ids:
+        with _AUDIT_LOCK:
+            entry = PENDING_AUDITS.get(batch_id)
+        if entry is None:
+            continue
+        if now() - entry["requested_at"] > AUDIT_PUSH_DEADLINE_MS:
+            logger.warning("audit: giving up pushing leaves for %s (deadline); copies kept in %s", batch_id, AUDIT_DIR)
+            with _AUDIT_LOCK:
+                PENDING_AUDITS.pop(batch_id, None)
+            continue
+        leaves = load_audit_leaves(batch_id, entry["nonces"])
+        if not leaves:
+            with _AUDIT_LOCK:
+                PENDING_AUDITS.pop(batch_id, None)
+            continue
+        submit_url = f"http://{master_ip}:{master_port}/submit-batch-audit/{batch_id}"
+        try:
+            resp = requests.post(submit_url, headers=headers, json={"leaves": leaves}, timeout=60)
+        except Exception as exc:
+            logger.warning("audit: post for %s failed: %s", batch_id, exc)
+            with _AUDIT_LOCK:
+                if batch_id in PENDING_AUDITS:
+                    PENDING_AUDITS[batch_id]["attempts"] += 1
+            time.sleep(2)
+            continue
+        if resp.status_code == 200:
+            logger.info("audit: delivered %s leaf(s) for batch %s", len(leaves), batch_id)
+            _mark_audit_sent(batch_id)
+            with _AUDIT_LOCK:
+                PENDING_AUDITS.pop(batch_id, None)
+        elif resp.status_code in (400, 403):
+            # Malformed or not ours — retrying will not help. Keep the copies.
+            logger.error("audit: master rejected leaves for %s: %s %s", batch_id, resp.status_code, resp.text)
+            with _AUDIT_LOCK:
+                PENDING_AUDITS.pop(batch_id, None)
+        else:
+            logger.warning("audit: status %s posting leaves for %s: %s", resp.status_code, batch_id, resp.text)
+            with _AUDIT_LOCK:
+                if batch_id in PENDING_AUDITS:
+                    PENDING_AUDITS[batch_id]["attempts"] += 1
+            time.sleep(2)
+    time.sleep(1)
+
+
+def purge_audit_folders(ttl):
+    """Drop audit copies older than AUDIT_TTL. Runs rarely; nothing hot here."""
+    if not os.path.isdir(AUDIT_DIR):
+        time.sleep(60)
+        return
+    cutoff = now() - ttl * 1000
+    for batch_id in os.listdir(AUDIT_DIR):
+        d = _audit_batch_dir(batch_id)
+        path = f"{d}/request.json"
+        try:
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    requested_at = int(json.load(f).get("requested_at") or 0)
+            else:
+                requested_at = int(os.path.getmtime(d) * 1000)
+        except Exception:
+            requested_at = 0
+        if requested_at and requested_at < cutoff:
+            logger.info("audit: purging copies for batch %s", batch_id)
+            shutil.rmtree(d, ignore_errors=True)
+    time.sleep(300)
+
+
 def send_results(headers, master_ip, master_port, results_dir):
     try:
         batch_id = READY_BATCH_IDS.pop()
@@ -1187,6 +1381,17 @@ def send_results(headers, master_ip, master_port, results_dir):
             logger.info(f"successfully posted root for batch {batch_id}")
             _status_push_recent(batch, "submitted")
             _on_submit_ok()
+            # Master picked its audit sample after seeing our qualities.
+            # Stage now, while the {nonce}.json files still exist.
+            try:
+                audit_nonces = (resp.json() or {}).get("audit_nonces")
+            except Exception:
+                audit_nonces = None
+            if isinstance(audit_nonces, list) and audit_nonces:
+                try:
+                    queue_audit(batch_id, audit_nonces, results_dir)
+                except Exception as exc:
+                    logger.warning("audit: staging leaves for %s failed: %s", batch_id, exc)
         elif resp.status_code == 408:
             # Master raced the assignment away — keep result and retry. Do NOT
             # mark finished or we permanently drop unpaid work.
@@ -1570,12 +1775,15 @@ def main():
     print(f"  Algorithms Dir: {algorithms_dir}")
     print(f"  Results Dir: {results_dir}")
     print(f"  TTL: {ttl}")
+    print(f"  Audit Dir: {AUDIT_DIR} (ttl {AUDIT_TTL}s)")
     print(f"  Workers: {num_workers}")
     print(f"  Idle poll: {IDLE_POLL_SEC}s  Busy poll: {BUSY_POLL_SEC}s")
     print(f"  Stop empty polls: {STOP_EMPTY_POLLS}")
     print(f"  Dashboard: http://{DASHBOARD_HOST}:{DASHBOARD_PORT}")
 
     os.makedirs(algorithms_dir, exist_ok=True)
+    os.makedirs(AUDIT_DIR, exist_ok=True)
+    requeue_unsent_audits()
     _wait_for_managed_containers()
     _reap_orphan_runtimes("startup")
     _start_dashboard_server(num_workers)
@@ -1590,6 +1798,8 @@ def main():
     Thread(target=wrap_thread, args=(compute_merkle_roots, results_dir)).start()
     Thread(target=wrap_thread, args=(send_results, headers, master_ip, master_port, results_dir)).start()
     Thread(target=wrap_thread, args=(purge_folders, results_dir, ttl)).start()
+    Thread(target=wrap_thread, args=(send_audit_leaves, headers, master_ip, master_port), name="audit-push").start()
+    Thread(target=wrap_thread, args=(purge_audit_folders, AUDIT_TTL), name="audit-purge", daemon=True).start()
     wrap_thread(poll_batches, headers, master_ip, master_port, results_dir, num_workers)
 
 
