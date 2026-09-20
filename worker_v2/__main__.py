@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import signal
 import threading
+from urllib.parse import urlsplit
 
 from .client import Client
 from .runner import Runner
@@ -30,8 +31,9 @@ def main(argv=None):
         store = Store(directory)
         try:
             client = Client(config["pool_origin"], os.environ.get("POOL_V2_EXECUTION_TOKEN"))
+            artifact_hosts = {urlsplit(client.origin).hostname, *config.get("binary_hosts", ["mainnet-api.tig.foundation"])}
             runtime = DockerRuntime(directory, config["runtime_images"],
-                binary_hosts=config.get("binary_hosts", ["mainnet-api.tig.foundation"]),
+                binary_hosts=artifact_hosts,
                 nonce_timeout=config.get("nonce_timeout_seconds", 1800))
             runner = Runner(client, store, runtime, resource=config["resource"],
                             compute_type=config["compute_type"], workers=config.get("workers", 1))

@@ -1,8 +1,11 @@
 from copy import deepcopy
 import gzip
+import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -17,6 +20,7 @@ from worker_v2.state import Store, StateError, canonical, digest
 
 def assignment(resource="CPU"):
     return {"api_version": "2.0", "benchmark_id": "fixture-benchmark", "num_nonces": 3, "num_bundles": 1,
+        "algorithm_name": "fixture_algo",
         "settings": {"player_id": "0x"+"1"*40, "block_id": "block-one", "challenge_id": "c001",
                      "algorithm_id": "c001_a001", "track_id": "track"},
         "rand_hash": "0"*32, "fuel_budget": 100, "hyperparameters": None,
@@ -229,6 +233,30 @@ class ProofTests(unittest.TestCase):
 
 
 class RuntimeIsolationTests(unittest.TestCase):
+    def test_pool_archive_checksum_is_verified_before_starting_a_container(self):
+        buffer=io.BytesIO()
+        with tarfile.open(fileobj=buffer,mode="w:gz") as target:
+            item=tarfile.TarInfo("amd64/fixture_algo.so");item.size=3
+            target.addfile(item,io.BytesIO(b"bin"))
+        archive=buffer.getvalue()
+        value=assignment()
+        value["binary_sha256"]=hashlib.sha256(archive).hexdigest()
+        value["binary_url"]="https://pool.example/api/v2/artifacts/"+value["binary_sha256"]
+        with tempfile.TemporaryDirectory() as directory, patch("platform.machine",return_value="x86_64"):
+            image="ghcr.io/tig-foundation/tig-monorepo/satisfiability/runtime@sha256:"+"a"*64
+            runtime=DockerRuntime(directory,{"c001":image},binary_hosts={"pool.example"})
+            runtime.validate(value,{"resource":"CPU","compute_type":"aws_c7a"})
+            with patch("worker_v2.runtime.build_opener") as opener,patch.object(runtime,"_inspect",return_value=None),patch.object(runtime,"_run") as run:
+                opener.return_value.open.return_value=io.BytesIO(archive)
+                runtime.prepare(value)
+                self.assertEqual(run.call_args.args[0][:2],["docker","run"])
+                self.assertEqual((runtime._paths(value)[0]/"c001_a001.so").read_bytes(),b"bin")
+                run.reset_mock()
+                value["binary_sha256"]="b"*64
+                opener.return_value.open.return_value=io.BytesIO(archive)
+                with self.assertRaises(StateError):runtime.prepare(value)
+                run.assert_not_called()
+
     def test_unpinned_image_and_foreign_container_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory, patch("platform.machine", return_value="x86_64"):
             image="ghcr.io/tig-foundation/tig-monorepo/satisfiability/runtime@sha256:"+"a"*64

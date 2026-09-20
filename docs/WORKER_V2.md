@@ -51,13 +51,18 @@ Moving tags are rejected. The release manifest must supply verified digests;
 this increment does not provide a production manifest. Optional settings are
 `binary_hosts` (default `mainnet-api.tig.foundation`) and
 `nonce_timeout_seconds` (default 1800).
+The configured pool's hostname is always included so its content-addressed
+archive endpoint can serve the exact binary saved before the precommit.
 
-The pool assignment supplies the algorithm archive URL and verified SHA-256.
+The pool assignment supplies the saved algorithm archive URL and verified SHA-256.
 The worker refuses redirects and unexpected hosts, verifies the archive,
 extracts only expected library/PTX files, and starts containers with its own
-deployment and benchmark labels. Runtime containers have no network and do not
-receive the execution token or SQLite database. Restart and removal operations
-check ownership and never scan or stop legacy containers.
+deployment and benchmark labels. Libraries are mounted read-only; the results
+directory is writable. Runtime containers have no network and do not receive
+the execution token or SQLite database. Restart and removal operations check
+ownership and never scan or stop legacy containers. Archive filenames use TIG's
+algorithm name (such as `titan_killer`), then map to the immutable algorithm ID
+within this benchmark's directory.
 
 ## Validation and current limits
 
