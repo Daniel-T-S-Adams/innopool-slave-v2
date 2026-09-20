@@ -17,12 +17,14 @@ Keep the upstream remote for fetching only. Set `remote.pushDefault` to `origin`
 and `remote.upstream.pushurl` to `disabled://upstream-read-only` in development
 clones. Do not develop in or push changes to the original repository.
 
-The matching pool destination is
-`https://github.com/Daniel-T-S-Adams/tig-pool-v2`. Creating that fork is currently
-blocked because the authenticated account cannot access `rootztigmod/tig-pool`.
-The maintained plan and versioned API contract will live in the pool fork once
-it is established. Paired pool/worker commit checks must be added before any
-v2 release; the current worker-only CI does not establish v2 compatibility.
+The matching pool repository is
+`https://github.com/Daniel-T-S-Adams/tig-pool-v2`. With the owner's approval, it
+was created as a private independent repository preserving the complete local
+Git history because the original remote was inaccessible. Authorized
+contributors can read its `POOL_REDESIGN_PLAN.md` and `IMPLEMENTATION_STATUS.md`
+on the development branches. The versioned API contract will also live there.
+Paired pool/worker commit checks must be added before any v2 release; the
+current worker-only CI does not establish v2 compatibility.
 
 ## Baseline validation
 
