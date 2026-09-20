@@ -29,6 +29,9 @@ member ID, and must be backed up rather than recreated when updating code.
 The runner streams saved solutions, bounds concurrent computations and resumes
 only missing nonces. `--drain` finishes existing work without requesting more.
 No startup path pulls Git changes, resets configuration or deletes old evidence.
+A durable `data/drain.request` also requests draining from a running process.
+The [pinned installer](INSTALL_V2.md) preserves the data directory and refuses
+an update until the worker has stopped and saved requests are complete.
 
 ## Development configuration
 
@@ -79,7 +82,7 @@ restart recovery, preserved evidence, runtime isolation and a recorded public
 TIG proof. The pool repository also runs this worker against its actual API
 using simulated TIG responses and a simulated compute runtime.
 
-Actual challenge execution on CPU/GPU hardware, live TIG submissions, paired
-release installation, deployment health checks and artifact retention through
+Actual challenge execution on CPU/GPU hardware, live TIG submissions, published
+paired release installation, deployment health checks and artifact retention through
 settlement still need integration validation. The inherited README installers
 and legacy scripts are not instructions for deploying this worker.

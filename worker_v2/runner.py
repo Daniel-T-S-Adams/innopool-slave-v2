@@ -7,6 +7,7 @@ from urllib.parse import quote
 from .client import ProtocolError
 from .proofs import BenchmarkTree, leaf_hash
 from .state import StateError, canonical, digest
+from .runtime import ARM_TYPES,CPU_TYPES
 
 
 TERMINAL = {"active", "verification_failed", "expired", "rejected", "cancelled"}
@@ -16,6 +17,9 @@ class Runner:
     def __init__(self, client, store, runtime, *, resource, compute_type, workers=1):
         if resource not in ("CPU", "GPU") or type(workers) is not int or workers < 1:
             raise StateError("offer one CPU or GPU resource with positive worker capacity")
+        expected='GPU' if compute_type=='aws_g4dn' else 'CPU' if compute_type in CPU_TYPES else None
+        if expected!=resource or (getattr(runtime,'arch',None) and (compute_type in ARM_TYPES)!=(runtime.arch=='arm64')):
+            raise StateError('compute type must match the offered resource and machine architecture')
         self.client, self.store, self.runtime = client, store, runtime
         self.offer = {"resource": resource, "compute_type": compute_type, "capacity": {"workers": workers}}
         self.workers = workers

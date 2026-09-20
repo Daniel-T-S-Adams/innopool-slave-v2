@@ -42,9 +42,10 @@ def main(argv=None):
                 signal.signal(number, lambda *_: stop.set())
             while not stop.is_set():
                 try:
-                    state = runner.step(drain=args.drain)
+                    drain=args.drain or (directory/'drain.request').exists()
+                    state = runner.step(drain=drain)
                     log.info("benchmark state: %s", state)
-                    if args.drain and store.unfinished() is None:
+                    if drain and store.unfinished() is None:
                         return 0
                 except Exception:
                     log.exception("benchmark progress interrupted; keeping assignment and evidence for retry")
