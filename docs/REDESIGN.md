@@ -1,8 +1,9 @@
 # InnoPool v2 worker development
 
-This fork will implement the whole-benchmark member protocol described in the
-pool redesign plan. The existing runtime remains the original batch worker;
-the v2 worker and a tested v2 release do not exist yet.
+This fork implements the whole-benchmark member protocol in the separate
+`worker_v2` package. See [the worker guide](WORKER_V2.md) for current behavior,
+development configuration and validation limits. The inherited runtime remains
+the original batch worker. A tested production v2 release does not exist yet.
 
 ## Repository and baseline
 
@@ -24,8 +25,8 @@ history because the original remote was inaccessible. The owner subsequently
 made it public so the standard GitHub Actions checks could run. Contributors
 can read its `POOL_REDESIGN_PLAN.md` and `IMPLEMENTATION_STATUS.md` on the
 development branches. The versioned API contract will also live there.
-Paired pool/worker commit checks must be added before any v2 release; the
-current worker-only CI does not establish v2 compatibility.
+The pool CI pins the worker commit for paired API tests. A production release
+must additionally pin and validate both commits with real challenge runtimes.
 
 ## Baseline validation
 
@@ -39,13 +40,7 @@ These tests mock runtime and network operations. They do not connect to a live
 pool, launch challenge containers, or demonstrate v2 benchmark execution.
 The `worker-baseline` CI job repeats them in an isolated runner.
 
-## Planned changes
-
-The reference runner will request either CPU or GPU work, persist a complete
-benchmark assignment, acknowledge receipt before execution, and recover that
-confirmation after lost responses or restarts. It will deliver the full
-benchmark result and requested proofs, retain evidence through settlement,
-and never give another member ownership of existing work.
+## Remaining deployment changes
 
 The v2 installation and release work must replace the inherited startup-time
 Git update/reset behavior, isolate services and runtime container names, and
