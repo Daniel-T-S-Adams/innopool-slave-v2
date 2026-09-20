@@ -19,10 +19,11 @@ clones. Do not develop in or push changes to the original repository.
 
 The matching pool repository is
 `https://github.com/Daniel-T-S-Adams/tig-pool-v2`. With the owner's approval, it
-was created as a private independent repository preserving the complete local
-Git history because the original remote was inaccessible. Authorized
-contributors can read its `POOL_REDESIGN_PLAN.md` and `IMPLEMENTATION_STATUS.md`
-on the development branches. The versioned API contract will also live there.
+was created as an independent repository preserving the complete local Git
+history because the original remote was inaccessible. The owner subsequently
+made it public so the standard GitHub Actions checks could run. Contributors
+can read its `POOL_REDESIGN_PLAN.md` and `IMPLEMENTATION_STATUS.md` on the
+development branches. The versioned API contract will also live there.
 Paired pool/worker commit checks must be added before any v2 release; the
 current worker-only CI does not establish v2 compatibility.
 
