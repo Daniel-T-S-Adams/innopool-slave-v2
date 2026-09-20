@@ -1,9 +1,10 @@
 # innopool-slave
 
-This is the development fork for the InnoPool v2 redesign. The code below still
-implements the legacy batch worker; v2 is not ready to deploy. See
-[redesign development notes](docs/REDESIGN.md) for the baseline, workflow, and
-planned whole-benchmark protocol.
+This is the development fork for the InnoPool v2 redesign. The separate
+[v2 worker](docs/WORKER_V2.md) implements whole-benchmark assignments and durable
+recovery. It is still undergoing integration and is not a production release.
+The instructions below describe the legacy batch worker. See
+[redesign development notes](docs/REDESIGN.md) for the baseline and workflow.
 
 InnoPool’s custom TIG benchmarker slave: stock protocol, live telemetry, fast
 re-poll, and a local status dashboard.

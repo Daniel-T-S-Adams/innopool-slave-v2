@@ -25,3 +25,9 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Install isolated v2 worker dependencies
+        run: python3 -m pip install -r requirements-v2.txt
+      - name: Test whole-benchmark persistence and recorded TIG proofs
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s tests/v2 -v
