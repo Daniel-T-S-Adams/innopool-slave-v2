@@ -37,6 +37,8 @@ class DockerRuntime:
         algorithm, challenge = settings.get("algorithm_id", ""), settings.get("challenge_id", "")
         if not re.fullmatch(r"c[0-9]+_a[0-9]+", algorithm) or not re.fullmatch(r"c[0-9]+", challenge):
             raise StateError("unexpected TIG challenge/algorithm identifier")
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}",assignment.get("algorithm_name",algorithm)):
+            raise StateError("unexpected algorithm archive library name")
         if any(not isinstance(settings.get(key), str) or not settings[key] for key in
                ("player_id", "block_id", "track_id")):
             raise StateError("assignment omits complete TIG settings")
@@ -81,6 +83,7 @@ class DockerRuntime:
         root.mkdir(parents=True, exist_ok=True)
         (root / "results").mkdir(exist_ok=True)
         algorithm = assignment["settings"]["algorithm_id"]
+        source_name = assignment.get("algorithm_name",algorithm)
         library = root / (algorithm + ".so")
         marker = root / "archive.sha256"
         if not library.exists() or not marker.exists() or marker.read_text() != assignment["binary_sha256"]:
@@ -89,7 +92,7 @@ class DockerRuntime:
                 archive = response.read(64*1024*1024+1)
             if len(archive) > 64*1024*1024 or hashlib.sha256(archive).hexdigest() != assignment["binary_sha256"]:
                 raise StateError("algorithm archive checksum or size is invalid")
-            wanted = {f"{self.arch}/{algorithm}.so": library, f"ptx/{algorithm}.ptx": root / (algorithm + ".ptx")}
+            wanted = {f"{self.arch}/{source_name}.so": library, f"ptx/{source_name}.ptx": root / (algorithm + ".ptx")}
             found, total = set(), 0
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r|gz") as tar:
                 for member in tar:
@@ -102,9 +105,9 @@ class DockerRuntime:
                         raise StateError("unsafe or duplicate algorithm archive entry")
                     wanted[member.name].write_bytes(tar.extractfile(member).read())
                     found.add(member.name)
-            if f"{self.arch}/{algorithm}.so" not in found:
+            if f"{self.arch}/{source_name}.so" not in found:
                 raise StateError("algorithm archive has no library for this CPU architecture")
-            if assignment["compute_type"] == "aws_g4dn" and f"ptx/{algorithm}.ptx" not in found:
+            if assignment["compute_type"] == "aws_g4dn" and f"ptx/{source_name}.ptx" not in found:
                 raise StateError("GPU algorithm archive has no PTX")
             marker.write_text(assignment["binary_sha256"])
         image = self.images[assignment["settings"]["challenge_id"]]
@@ -121,7 +124,8 @@ class DockerRuntime:
         args = ["docker", "run", "--detach", "--name", name, "--network", "none", "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges", "--label", "innopool.v2.owner=" + self.namespace,
                 "--label", "innopool.v2.benchmark=" + assignment["benchmark_id"],
-                "--mount", f"type=bind,src={root},dst=/work", "--workdir", "/work"]
+                "--mount", f"type=bind,src={root},dst=/work,readonly",
+                "--mount", f"type=bind,src={root / 'results'},dst=/work/results", "--workdir", "/work"]
         if assignment["compute_type"] == "aws_g4dn":
             args += ["--gpus", "all", "--env", "NVIDIA_DRIVER_CAPABILITIES=compute,utility"]
         self._run(args + [image, "sleep", "infinity"], timeout=300)
