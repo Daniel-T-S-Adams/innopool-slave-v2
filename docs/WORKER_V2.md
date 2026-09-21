@@ -54,6 +54,14 @@ Moving tags are rejected. The release manifest must supply verified digests;
 this increment does not provide a production manifest. Optional settings are
 `binary_hosts` (default `mainnet-api.tig.foundation`) and
 `nonce_timeout_seconds` (default 1800).
+Optional `runtime_limits` specifies integer `cpu_millis` (1000 = one CPU),
+`memory_mib` and `pids_limit`, with optional `cgroup_parent` naming a systemd
+slice. All three numeric fields are required when limits are configured.
+Memory swap is disabled. Invalid or incomplete limits stop startup before
+requesting work. Without this setting, the runtime has no explicit resource
+caps; `workers` alone limits nonce concurrency, not CPU or memory consumption.
+For a shared machine, use the [bounded local CPU pilot](LOCAL_CPU_PILOT.md),
+which also caps the worker and all pilot services together.
 The configured pool's hostname is always included so its content-addressed
 archive endpoint can serve the exact binary saved before the precommit.
 

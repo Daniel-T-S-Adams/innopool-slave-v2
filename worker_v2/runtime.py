@@ -13,6 +13,7 @@ from urllib.request import Request, build_opener
 
 from .client import NoRedirect
 from .proofs import leaf_hash
+from .resources import RuntimeLimits
 from .state import StateError, canonical
 
 
@@ -22,7 +23,8 @@ CPU_TYPES = ARM_TYPES | {"aws_t3", "aws_t3a", "aws_c7i", "aws_c7a", "aws_m7i", "
 
 class DockerRuntime:
     def __init__(self, directory, images, *, binary_hosts=("mainnet-api.tig.foundation",),
-                 nonce_timeout=1800, command=subprocess.run):
+                 nonce_timeout=1800, resource_limits=None, command=subprocess.run):
+        self.limits = RuntimeLimits.parse(resource_limits)
         self.directory = Path(directory).resolve() / "runtime"
         self.directory.mkdir(parents=True, exist_ok=True)
         self.images, self.binary_hosts, self.nonce_timeout, self.command = images, set(binary_hosts), nonce_timeout, command
@@ -31,6 +33,13 @@ class DockerRuntime:
         if self.arch is None:
             raise StateError("unsupported runtime CPU architecture")
         self.namespace = hashlib.sha256(str(self.directory).encode()).hexdigest()[:12]
+
+    def check_resources(self):
+        if self.limits and self.limits.cgroup_parent:
+            self.limits.check_process_group()
+            info = self._run(["docker", "info", "--format", "{{json .CgroupDriver}} {{json .CgroupVersion}}"])
+            if info.stdout.strip() != '"systemd" "2"':
+                raise StateError("shared worker limits require Docker with systemd and cgroup v2")
 
     def validate(self, assignment, offer):
         settings = assignment.get("settings", {})
@@ -119,13 +128,20 @@ class DockerRuntime:
             # Clear this benchmark's leftover nonce processes after a worker
             # crash before replaying unfinished nonces. Other containers are
             # never inspected by name patterns or signalled.
-            self._run(["docker", "restart", "--time", "5", name])
-            return
+            if not self.limits or self.limits.matches(existing.get("HostConfig", {})):
+                self._run(["docker", "restart", "--time", "5", name])
+                return
+            # Container resource placement cannot all be changed in place.
+            # Recreate only this owned runtime; bind-mounted nonce evidence,
+            # downloaded libraries and the worker database remain intact.
+            self._run(["docker", "rm", "--force", name])
         args = ["docker", "run", "--detach", "--name", name, "--network", "none", "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges", "--label", "innopool.v2.owner=" + self.namespace,
                 "--label", "innopool.v2.benchmark=" + assignment["benchmark_id"],
                 "--mount", f"type=bind,src={root},dst=/work,readonly",
                 "--mount", f"type=bind,src={root / 'results'},dst=/work/results", "--workdir", "/work"]
+        if self.limits:
+            args += self.limits.docker_args()
         if assignment["compute_type"] == "aws_g4dn":
             args += ["--gpus", "all", "--env", "NVIDIA_DRIVER_CAPABILITIES=compute,utility"]
         self._run(args + [image, "sleep", "infinity"], timeout=300)

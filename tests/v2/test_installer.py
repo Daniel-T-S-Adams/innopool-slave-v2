@@ -108,6 +108,7 @@ print('fixture-revision='''+name+'''')
     def test_update_requires_drained_work_and_preserves_configuration_token_and_evidence(self):
         self.install()
         config=json.loads((self.root/'worker.json').read_text());config['workers']=3
+        config['runtime_limits']={'cpu_millis':1000,'memory_mib':1280,'pids_limit':128,'cgroup_parent':'innopoolv2pilot.slice'}
         (self.root/'worker.json').write_text(json.dumps(config))
         store=Store(self.root/'data');request=store.request({'resource':'CPU'});store.close()
         evidence=self.root/'data'/'retained-arbitration-evidence';evidence.write_text('retain through settlement')
@@ -116,6 +117,7 @@ print('fixture-revision='''+name+'''')
         store=Store(self.root/'data');store.finish(request['request_key'],'expired');store.close()
         installer.install(self.root,'https://pool.example',self.manifest(self.second),update=True)
         self.assertEqual(json.loads((self.root/'worker.json').read_text())['workers'],3)
+        self.assertEqual(json.loads((self.root/'worker.json').read_text())['runtime_limits'],config['runtime_limits'])
         self.assertEqual((self.root/'execution-token').read_text().strip(),self.token)
         self.assertEqual(evidence.read_text(),'retain through settlement')
         self.assertTrue((self.root/'releases'/self.first['commit']).is_dir())
