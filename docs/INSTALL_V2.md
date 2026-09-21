@@ -25,6 +25,11 @@ machine. Other CPU types use AMD64. GPU requests use `--resource GPU
 --compute-type aws_g4dn` on AMD64. Each installation offers one resource class.
 Member installations still share the pool's two-slot and collateral limits.
 
+On a shared host, configure hard resource limits before starting the worker.
+`--workers 1` does not itself cap CPU use or memory. Follow the
+[local CPU pilot procedure](LOCAL_CPU_PILOT.md) for one worker at a time within
+a shared one-CPU/2-GiB budget. Its limits in `worker.json` survive drained updates.
+
 The installer prompts privately for a member execution token. It can also read
 `POOL_V2_EXECUTION_TOKEN` from the environment. The token is saved in a private
 file outside Git checkouts and is passed only to the worker process. Never

@@ -13,13 +13,14 @@ from urllib.parse import urlsplit
 from .client import Client
 from .runner import Runner
 from .runtime import DockerRuntime
-from .state import Store
+from .state import Store, StateError
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
     parser.add_argument("--drain", action="store_true", help="finish saved work without requesting another benchmark")
+    parser.add_argument("--require-resource-limits", action="store_true", help="refuse startup without configured hard resource limits")
     args = parser.parse_args(argv)
     config = json.loads(Path(args.config).read_text())
     directory = Path(config["data_directory"]).resolve()
@@ -34,7 +35,11 @@ def main(argv=None):
             artifact_hosts = {urlsplit(client.origin).hostname, *config.get("binary_hosts", ["mainnet-api.tig.foundation"])}
             runtime = DockerRuntime(directory, config["runtime_images"],
                 binary_hosts=artifact_hosts,
-                nonce_timeout=config.get("nonce_timeout_seconds", 1800))
+                nonce_timeout=config.get("nonce_timeout_seconds", 1800),
+                resource_limits=config.get("runtime_limits"))
+            if args.require_resource_limits and runtime.limits is None:
+                raise StateError("this launch requires runtime_limits")
+            runtime.check_resources()
             runner = Runner(client, store, runtime, resource=config["resource"],
                             compute_type=config["compute_type"], workers=config.get("workers", 1))
             stop = threading.Event()
