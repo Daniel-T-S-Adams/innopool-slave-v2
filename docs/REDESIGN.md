@@ -10,9 +10,11 @@ the original batch worker. A tested production v2 release does not exist yet.
 - Fork: https://github.com/Daniel-T-S-Adams/innopool-slave-v2
 - Upstream: https://github.com/rootztigmod/innopool-slave
 - Baseline: `14109c90b38ea342c8264e86ae122b6e9a0e49ea`, tagged `redesign-base`.
-- Integration branch: `redesign/v2`; tested releases: `release/v2`.
+- Integration branch: `main` since PR #6 on 8 October 2026; the former
+  `redesign/v2` branch is retired. `release/v2` is fast-forwarded to each
+  deployed, tested release tag and never receives direct development.
 - Features use separate branches and pull requests targeting this fork's
-  `redesign/v2` branch. The baseline tag must not move.
+  `main` branch. The baseline tag must not move.
 
 Keep the upstream remote for fetching only. Set `remote.pushDefault` to `origin`
 and `remote.upstream.pushurl` to `disabled://upstream-read-only` in development

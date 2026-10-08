@@ -2,9 +2,9 @@ name: Worker CI
 
 on:
   push:
-    branches: ["feature/**", "redesign/v2", "release/v2"]
+    branches: ["main", "feature/**", "release/v2"]
   pull_request:
-    branches: ["redesign/v2", "release/v2"]
+    branches: ["main"]
 
 permissions:
   contents: read
