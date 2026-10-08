@@ -1,8 +1,9 @@
 # InnoPool v2 member worker
 
 This fork implements whole-benchmark assignments, durable member evidence and
-explicit installation of a paired release. The redesign is undergoing
-integration; no production v2 release is published yet.
+explicit installation of a paired release. The pool's mainnet deployment pins
+this fork's commit `fd29279` (tag `mainnet-cpu-pilot-20261007`); `release/v2`
+points at the deployed revision and `main` is the integration branch.
 
 - [Worker behavior and configuration](docs/WORKER_V2.md)
 - [Install, drain and update a pinned worker](docs/INSTALL_V2.md)
