@@ -2,7 +2,10 @@
 
 This fork implements whole-benchmark assignments, durable member evidence and
 explicit installation of a paired release. The pool's mainnet deployment pins
-this fork's commit `fd29279` (tag `mainnet-cpu-pilot-20261007`); `release/v2`
+this fork's commit `fd29279` (tag `mainnet-cpu-pilot-20261007`); new work is
+paused following a CPU attempt that expired before TIG accepted its results.
+See the pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+`release/v2`
 points at the deployed revision and `main` is the integration branch.
 
 - [Worker behavior and configuration](docs/WORKER_V2.md)

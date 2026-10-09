@@ -3,7 +3,12 @@
 This fork implements the whole-benchmark member protocol in the separate
 `worker_v2` package. See [the worker guide](WORKER_V2.md) for current behavior,
 development configuration and validation limits. The inherited runtime remains
-the original batch worker. A tested production v2 release does not exist yet.
+the original batch worker as a historical reference. The mainnet pool
+serves pinned v2 worker `fd29279` (`mainnet-cpu-pilot-20261007`); current `main`
+is the development branch. See [installation](INSTALL_V2.md) and the pool's
+[operations record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+The mainnet CPU attempt expired, so release availability does not establish
+successful protocol completion.
 
 ## Repository and baseline
 
@@ -42,10 +47,17 @@ These tests mock runtime and network operations. They do not connect to a live
 pool, launch challenge containers, or demonstrate v2 benchmark execution.
 The `worker-baseline` CI job repeats them in an isolated runner.
 
-## Remaining deployment changes
+## Installed release workflow and remaining validation
 
-The v2 installation and release work must replace the inherited startup-time
-Git update/reset behavior, isolate services and runtime container names, and
-pin the tested worker and pool commits together. Existing README installation
-instructions and scripts still describe the legacy worker and are not v2
-deployment instructions.
+The v2 installer pins a detached commit, isolates its environment/runtime names
+and preserves saved evidence during drained updates. The former startup script
+now invokes the pinned launcher; it performs no startup Git reset. The README
+and [installer guide](INSTALL_V2.md) describe v2; inherited batch-worker behavior
+is retained in [the legacy guide](LEGACY_WORKER.md).
+
+CPU testnet execution and activation passed in September. The mainnet attempt
+on 7–9 October completed after its protocol lifetime and was rejected. Measure
+the whole intended workload on its actual hardware before another paid attempt.
+GPU execution, timely mainnet completion and evidence through settlement remain
+open checks. Pool cleanup resolves the evidenced late-result attempt as expired
+without deleting member evidence or releasing collateral early.
