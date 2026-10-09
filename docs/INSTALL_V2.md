@@ -1,8 +1,11 @@
 # Installing and updating a pinned v2 worker
 
-The installer is implemented for staging. No production paired release has
-been published yet. The pool must serve verified release metadata before this
-workflow is usable from its Join page. Do not use the inherited batch-worker
+The mainnet pool serves a checked installer for worker `fd29279`, tag
+`mainnet-cpu-pilot-20261007`. Installation is available from its Join page, but
+new work is paused during operational cleanup. The 7 October CPU attempt
+expired before TIG accepted its results; timely execution remains unvalidated.
+See the pool's [current operations record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+Do not use the inherited batch-worker
 installer or Compose stack for whole-benchmark work.
 
 ## Install from the pool's recorded release

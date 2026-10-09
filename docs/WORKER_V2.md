@@ -50,8 +50,8 @@ CPU requests and `aws_g4dn` with GPU requests.
 
 Each runtime image must have the form
 `ghcr.io/tig-foundation/tig-monorepo/<challenge-name>/runtime@sha256:<digest>`.
-Moving tags are rejected. The release manifest must supply verified digests;
-this increment does not provide a production manifest. Optional settings are
+Moving tags are rejected. The pool's deployed release manifest supplies
+the verified runtime digests for its supported challenges. Optional settings are
 `binary_hosts` (default `mainnet-api.tig.foundation`) and
 `nonce_timeout_seconds` (default 1800).
 Optional `runtime_limits` specifies integer `cpu_millis` (1000 = one CPU),
@@ -90,7 +90,18 @@ restart recovery, preserved evidence, runtime isolation and a recorded public
 TIG proof. The pool repository also runs this worker against its actual API
 using simulated TIG responses and a simulated compute runtime.
 
-Actual challenge execution on CPU/GPU hardware, live TIG submissions, published
-paired release installation, deployment health checks and artifact retention through
-settlement still need integration validation. The inherited README installers
-and legacy scripts are not instructions for deploying this worker.
+Real CPU testnet execution, activation and paired installation passed in
+September. The mainnet pool now serves worker `fd29279`, tag
+`mainnet-cpu-pilot-20261007`. The 7–9 October mainnet CPU attempt finished after
+the challenge's 120-block lifetime and TIG rejected the results. It is not a
+successful mainnet completion check. The pool cleanup records this as expired;
+the worker recognizes that terminal state and retains its saved evidence.
+
+The runner currently computes all missing nonces inside one `step()` before
+checking the pool again. Its per-nonce timeout is not a whole-benchmark deadline
+or a capacity guarantee. Benchmark viability must be measured on the intended
+hardware and limits before another paid attempt. GPU execution, timely mainnet
+completion, interruption during live compute, funded takeover and retention
+through settlement remain open. See the pool's
+[operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+Use the pinned v2 installer rather than legacy batch-worker scripts.
