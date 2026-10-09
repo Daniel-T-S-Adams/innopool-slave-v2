@@ -8,6 +8,9 @@ See the pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-
 `release/v2`
 points at the deployed revision and `main` is the integration branch.
 
+The direct TIG/GitHub binary download update is prepared on
+`cleanup/direct-algorithm-downloads`; it has not been tested or deployed.
+
 - [Worker behavior and configuration](docs/WORKER_V2.md)
 - [Install, drain and update a pinned worker](docs/INSTALL_V2.md)
 - [Preserved baseline and development workflow](docs/REDESIGN.md)

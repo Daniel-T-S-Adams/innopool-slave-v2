@@ -32,7 +32,8 @@ def main(argv=None):
         store = Store(directory)
         try:
             client = Client(config["pool_origin"], os.environ.get("POOL_V2_EXECUTION_TOKEN"))
-            artifact_hosts = {urlsplit(client.origin).hostname, *config.get("binary_hosts", ["mainnet-api.tig.foundation"])}
+            from .artifacts import DEFAULT_BINARY_HOSTS
+            artifact_hosts = {urlsplit(client.origin).hostname, *config.get("binary_hosts", DEFAULT_BINARY_HOSTS)}
             runtime = DockerRuntime(directory, config["runtime_images"],
                 binary_hosts=artifact_hosts,
                 nonce_timeout=config.get("nonce_timeout_seconds", 1800),

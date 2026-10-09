@@ -52,7 +52,8 @@ Each runtime image must have the form
 `ghcr.io/tig-foundation/tig-monorepo/<challenge-name>/runtime@sha256:<digest>`.
 Moving tags are rejected. The pool's deployed release manifest supplies
 the verified runtime digests for its supported challenges. Optional settings are
-`binary_hosts` (default `mainnet-api.tig.foundation`) and
+`binary_hosts` (default `mainnet-api.tig.foundation` and
+`media.githubusercontent.com`) and
 `nonce_timeout_seconds` (default 1800).
 Optional `runtime_limits` specifies integer `cpu_millis` (1000 = one CPU),
 `memory_mib` and `pids_limit`, with optional `cgroup_parent` naming a systemd
@@ -63,10 +64,15 @@ caps; `workers` alone limits nonce concurrency, not CPU or memory consumption.
 For a shared machine, use the [bounded local CPU pilot](LOCAL_CPU_PILOT.md),
 which also caps the worker and all pilot services together.
 The configured pool's hostname is always included so its content-addressed
-archive endpoint can serve the exact binary saved before the precommit.
+archive endpoint remains usable for legacy assignments. Explicit older
+`binary_hosts` overrides must add `media.githubusercontent.com` before using
+direct-download assignments.
 
-The pool assignment supplies the saved algorithm archive URL and verified SHA-256.
-The worker refuses redirects and unexpected hosts, verifies the archive,
+New pool assignments supply a direct public TIG/GitHub URL and verified SHA-256.
+The worker permits public GET redirects only between allowed HTTPS sources,
+restricts GitHub media to TIG's official repository, forwards no credentials,
+and verifies the archive before extraction. Pool API requests refuse redirects.
+The worker
 extracts only expected library/PTX files, and starts containers with its own
 deployment and benchmark labels. Libraries are mounted read-only; the results
 directory is writable. Runtime containers have no network and do not receive
@@ -74,6 +80,11 @@ the execution token or SQLite database. Restart and removal operations check
 ownership and never scan or stop legacy containers. Archive filenames use TIG's
 algorithm name (such as `titan_killer`), then map to the immutable algorithm ID
 within this benchmark's directory.
+
+The direct-download changes are implemented on the storage cleanup branch,
+without runtime tests or deployment. Mainnet still serves worker `fd29279`.
+The pool's `docs/LEAN_STORAGE.md` records the implementation and activation
+sequence.
 
 ## Validation and current limits
 
