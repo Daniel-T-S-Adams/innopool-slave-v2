@@ -5,6 +5,32 @@ legacy worker and owns one entire benchmark at a time. Members may run their
 own compatible clients or multiple installations; the pool enforces the shared
 two-slot limit for each member across CPU and GPU requests.
 
+## Member-managed masters
+
+Members may replace this reference client with a master that distributes nonce
+computation across their own compatible machines. The master uses the same
+API 2.0 work request, assignment, acknowledgement, complete result and proof
+routes. It remains responsible for the whole benchmark after confirmed handover.
+Members implement internal transport, scheduling, recovery and output aggregation.
+The pool's [member master contract](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/MEMBER_MASTER_V2.md)
+specifies that integration; the contract clarification is prepared locally
+alongside the storage cleanup and has not been deployed or functionally tested.
+
+Every helper used for an assignment must match its verification compute type
+and compatible architecture, algorithm binary and runtime. A custom master may
+offer aggregate concurrent nonce capacity across compatible machines. It must
+save complete outputs durably, return one whole-benchmark root with all nonce
+qualities in order, and supply exactly TIG's sampled proofs. Keep execution
+credentials with the pool-facing master; helpers do not need pool credentials.
+
+This reference implementation executes on one machine. Its `workers` setting
+controls local concurrent nonce computations and does not connect other machines.
+Running several independent installations requests separate benchmarks; all
+installations still share the member's two-slot limit. Sharing one benchmark
+requires a member-managed master to aggregate the outputs before upload.
+Retain the required assignment and output evidence through final collateral
+settlement and any pending evidence requests.
+
 ## Assignment and recovery
 
 1. Offer exactly CPU or GPU, a compatible TIG verification compute type and

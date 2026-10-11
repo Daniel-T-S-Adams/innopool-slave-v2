@@ -15,6 +15,12 @@ The direct TIG/GitHub binary download update is prepared on
 - [Install, drain and update a pinned worker](docs/INSTALL_V2.md)
 - [Preserved baseline and development workflow](docs/REDESIGN.md)
 
+Members may use their own master to coordinate compatible machines and submit
+one complete benchmark through the existing pool API. See
+[member-managed masters](docs/WORKER_V2.md#member-managed-masters). This reference
+worker provides local nonce concurrency; members implement any remote scheduling
+and communication themselves.
+
 The installer uses `Daniel-T-S-Adams/innopool-slave-v2`, verifies the pool’s
 recorded tag and full commit, and creates a separate installation. Restarting
 keeps that revision. Updates preserve configuration, credentials and benchmark
