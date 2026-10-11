@@ -9,7 +9,8 @@ See the pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-
 points at the deployed revision and `main` is the integration branch.
 
 The direct TIG/GitHub binary download update is prepared on
-`cleanup/direct-algorithm-downloads`; it has not been tested or deployed.
+`cleanup/direct-algorithm-downloads`. On 11 October 2026 all 33 v2 tests and
+17 inherited regression tests passed locally. It has not been deployed.
 
 - [Worker behavior and configuration](docs/WORKER_V2.md)
 - [Install, drain and update a pinned worker](docs/INSTALL_V2.md)

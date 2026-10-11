@@ -1,6 +1,6 @@
 """Public binary downloads never forward execution credentials."""
 
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request
 
 from .state import StateError
@@ -19,7 +19,9 @@ def check_url(url, allowed_hosts):
             or parsed.username or parsed.password or parsed.fragment
             or port not in (None, 443)
             or (parsed.hostname == "media.githubusercontent.com"
-                and not parsed.path.startswith("/media/tig-foundation/tig-monorepo/"))):
+                and (not parsed.path.startswith("/media/tig-foundation/tig-monorepo/")
+                     or '\\' in unquote(parsed.path)
+                     or any(part in ('.', '..') for part in unquote(parsed.path).split('/'))))):
         raise StateError("algorithm download does not use an allowed public HTTPS source")
 
 

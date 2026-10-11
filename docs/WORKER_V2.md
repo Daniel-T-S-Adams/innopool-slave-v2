@@ -13,8 +13,10 @@ API 2.0 work request, assignment, acknowledgement, complete result and proof
 routes. It remains responsible for the whole benchmark after confirmed handover.
 Members implement internal transport, scheduling, recovery and output aggregation.
 The pool's [member master contract](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/MEMBER_MASTER_V2.md)
-specifies that integration; the contract clarification is prepared locally
-alongside the storage cleanup and has not been deployed or functionally tested.
+specifies that integration. Paired pool tests exercise a simulated master
+combining helper outputs, recovering missing work after restart, and submitting
+one complete result and sampled proofs. Remote helper transport and timely
+execution on the intended hardware remain unverified. These changes are not deployed.
 
 Every helper used for an assignment must match its verification compute type
 and compatible architecture, algorithm binary and runtime. A custom master may
