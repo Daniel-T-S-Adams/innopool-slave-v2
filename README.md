@@ -11,9 +11,11 @@ points at the deployed revision and `main` is the integration branch.
 The direct TIG/GitHub binary download update is prepared on
 `cleanup/direct-algorithm-downloads`. On 11 October 2026 all 33 v2 tests and
 17 inherited regression tests passed locally. On 12 October the optional SSH
-member master passed 46 v2 tests and 17 inherited tests. A real SSH/Docker subset
-check verified eight knapsack nonces and cached-output recovery on `poolminer1`;
-the intended two-server benchmark remains pending SSH access to its helper.
+member master passed 46 v2 tests and 17 inherited tests. The real two-server
+rehearsal used `poolminer1` and its SSH helper: all 200 knapsack nonces and three
+proofs passed in 15 minutes 8 seconds, including deliberate disconnect/crash
+recovery. The isolated pool API accepted uploads and retries; no paid TIG
+submission was made. See the [SSH guide](docs/SSH_MEMBER_MASTER_V2.md).
 These changes have not been deployed to the production pool or served worker.
 
 - [Worker behavior and configuration](docs/WORKER_V2.md)

@@ -121,5 +121,23 @@ seconds including preparation. After a new SSH session, a saved nonce was
 recovered from the helper cache. This was a subset check without pool calls;
 it did not complete a protocol benchmark or use the intended second server.
 
-Intended two-server execution and TIG acceptance remain hardware/live checks.
-The 11 October single-host knapsack check does not establish distributed execution.
+The subsequent complete rehearsal used `poolminer1` as master with six local
+workers and six SSH helper workers on `77.42.14.166`. Both ARM64 hosts ran the
+same pinned source/images and configured `aws_c7g` verification type; this does
+not certify a physical cloud instance type. All **200 knapsack nonces** and
+**three sampled proofs** passed. The master returned 99 results locally and
+received 101 from the helper. Wall time was **15 minutes 8 seconds**, including
+an intentional helper disconnect, master SIGKILL and the pause before restart.
+All **105 saved outputs** survived unchanged and were reused without recomputation.
+
+The isolated pool API accepted complete result/proof uploads and identical
+retries, rejected a changed root, and preserved financial records. Protocol
+receipts/sampling/activation were simulated; no paid TIG submission or production
+execution token was used. Owned runtime containers were released and test units
+stopped. Separate source/configuration and evidence remain on both hosts; no
+autostart worker was created. Temporary slice definitions disappear on reboot
+and must be installed deliberately for a persistent release.
+
+See the pool's [full verification record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/SSH_MEMBER_MASTER_VERIFICATION.md).
+Paired production activation, actual TIG acceptance, timely job-scheduling
+execution and GPU validation remain pending.
