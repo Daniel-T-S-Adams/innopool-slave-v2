@@ -32,6 +32,9 @@ class Runner:
         if request is None:
             if drain or not capabilities.get("work_enabled"):
                 return "idle"
+            before_offer = getattr(self.runtime, "before_offer", None)
+            if before_offer:
+                self.offer["capacity"]["workers"] = before_offer()
             request = self.store.request(self.offer)  # Commit request key before POST.
         if request["server_id"] is None:
             if not capabilities.get("work_enabled"):
@@ -46,6 +49,9 @@ class Runner:
             return state["state"]
         if not state.get("benchmark_id"):
             if state["state"] == "queued" and not drain:
+                before_offer = getattr(self.runtime, "before_offer", None)
+                if before_offer and before_offer() < json.loads(request["offer"])["capacity"]["workers"]:
+                    raise StateError("saved offer exceeds currently ready member capacity")
                 self.client.call("POST", "/api/v2/work-requests/" + quote(request["server_id"], safe="") + "/refresh", {})
             return "waiting"
         identity = state["benchmark_id"]

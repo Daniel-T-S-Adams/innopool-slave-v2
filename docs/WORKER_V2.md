@@ -1,4 +1,4 @@
-# Whole-benchmark reference worker
+# Whole-benchmark member worker
 
 `worker_v2` implements member API version `2.0`. It runs independently of the
 legacy worker and owns one entire benchmark at a time. Members may run their
@@ -7,16 +7,18 @@ two-slot limit for each member across CPU and GPU requests.
 
 ## Member-managed masters
 
-Members may replace this reference client with a master that distributes nonce
-computation across their own compatible machines. The master uses the same
+Members may use the [SSH member master mode](SSH_MEMBER_MASTER_V2.md), or replace
+this client with their own master, to distribute nonce computation across
+compatible machines. The master uses the same
 API 2.0 work request, assignment, acknowledgement, complete result and proof
 routes. It remains responsible for the whole benchmark after confirmed handover.
 Members implement internal transport, scheduling, recovery and output aggregation.
 The pool's [member master contract](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/MEMBER_MASTER_V2.md)
 specifies that integration. Paired pool tests exercise a simulated master
 combining helper outputs, recovering missing work after restart, and submitting
-one complete result and sampled proofs. Remote helper transport and timely
-execution on the intended hardware remain unverified. These changes are not deployed.
+one complete result and sampled proofs. SSH transport and recovery now have
+local tests; execution on two distinct intended machines remains unverified.
+These changes are not deployed.
 
 Every helper used for an assignment must match its verification compute type
 and compatible architecture, algorithm binary and runtime. A custom master may
@@ -25,11 +27,12 @@ save complete outputs durably, return one whole-benchmark root with all nonce
 qualities in order, and supply exactly TIG's sampled proofs. Keep execution
 credentials with the pool-facing master; helpers do not need pool credentials.
 
-This reference implementation executes on one machine. Its `workers` setting
-controls local concurrent nonce computations and does not connect other machines.
+By default this implementation executes on one machine. Its `workers` setting
+controls local concurrent nonce computations. Optional `helpers` configure
+additional SSH compute capacity; see the member master guide.
 Running several independent installations requests separate benchmarks; all
 installations still share the member's two-slot limit. Sharing one benchmark
-requires a member-managed master to aggregate the outputs before upload.
+uses a member master to aggregate the outputs before upload.
 Retain the required assignment and output evidence through final collateral
 settlement and any pending evidence requests.
 
@@ -109,8 +112,11 @@ ownership and never scan or stop legacy containers. Archive filenames use TIG's
 algorithm name (such as `titan_killer`), then map to the immutable algorithm ID
 within this benchmark's directory.
 
-The direct-download changes are implemented on the storage cleanup branch,
-without runtime tests or deployment. Mainnet still serves worker `fd29279`.
+The direct-download changes are implemented on the storage cleanup branch.
+Local tests and the 11 October real single-host CPU check passed; the measured
+knapsack workload completed its 200 nonces, while job scheduling failed the
+eight-minute single-nonce probe. These changes are not deployed. Mainnet still
+serves worker `fd29279` as last checked on 9 October.
 The pool's `docs/LEAN_STORAGE.md` records the implementation and activation
 sequence.
 

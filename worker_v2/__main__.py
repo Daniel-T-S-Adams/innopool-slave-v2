@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from .client import Client
 from .runner import Runner
 from .runtime import DockerRuntime
+from .fleet import build_fleet
 from .state import Store, StateError
 
 
@@ -30,6 +31,7 @@ def main(argv=None):
     with (directory / "worker.lock").open("a") as process_lock:
         fcntl.flock(process_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         store = Store(directory)
+        runtime = None
         try:
             client = Client(config["pool_origin"], os.environ.get("POOL_V2_EXECUTION_TOKEN"))
             from .artifacts import DEFAULT_BINARY_HOSTS
@@ -40,9 +42,10 @@ def main(argv=None):
                 resource_limits=config.get("runtime_limits"))
             if args.require_resource_limits and runtime.limits is None:
                 raise StateError("this launch requires runtime_limits")
+            runtime, workers = build_fleet(runtime, store, config)
             runtime.check_resources()
             runner = Runner(client, store, runtime, resource=config["resource"],
-                            compute_type=config["compute_type"], workers=config.get("workers", 1))
+                            compute_type=config["compute_type"], workers=workers)
             stop = threading.Event()
             for number in (signal.SIGINT, signal.SIGTERM):
                 signal.signal(number, lambda *_: stop.set())
@@ -57,7 +60,11 @@ def main(argv=None):
                     log.exception("benchmark progress interrupted; keeping assignment and evidence for retry")
                 stop.wait(3)
         finally:
-            store.close()
+            try:
+                if runtime is not None and hasattr(runtime, "close"):
+                    runtime.close()
+            finally:
+                store.close()
     return 0
 
 
