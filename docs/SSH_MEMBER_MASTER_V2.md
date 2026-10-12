@@ -35,6 +35,7 @@ The master keeps its ordinary worker configuration and adds:
 {
   "master_id": "member-master-one",
   "workers": 2,
+  "nonce_timeout_seconds": 480,
   "helpers": [{
     "host": "helper.example",
     "user": "root",
@@ -81,6 +82,9 @@ compute type, complete runtime-image mapping and nonce timeout. The image
 placeholder above must be replaced with actual official images pinned by
 SHA-256. The helper's slice must match both configurations. The transport
 starts the helper inside that slice with `systemd-run --scope`.
+For legacy assignments whose archive URL points to the pool, configure the
+helper's `binary_hosts` with the pool API hostname plus
+`mainnet-api.tig.foundation` and `media.githubusercontent.com`.
 
 ## Recovery and limits
 
@@ -107,7 +111,7 @@ implementation does not guess a finalization date and delete evidence.
 Local tests cover local/helper aggregation, exact whole-benchmark proofs,
 disconnection and master restart, cached helper output, assignment/architecture
 checks, strict SSH configuration, and concurrent request/response matching
-through real subprocess pipes. **44 v2 tests and 17 inherited tests passed.**
+through real subprocess pipes. **45 v2 tests and 17 inherited tests passed.**
 Computation and the SSH executable in those tests are simulated.
 
 A subsequent real SSH/Docker check used a workspace coordinator and an isolated

@@ -33,6 +33,14 @@ class RemoteRuntime:
             raise HelperError("helper prepared a different assignment")
         self.saved = saved
 
+    def validate(self, assignment, saved, offer):
+        self.check_resources()
+        response = self.transport.call("validate", {
+            "master_id": self.master_id, "offer": offer,
+            "assignment_payload": saved["payload"], "assignment_digest": saved["digest"]})
+        if response != {"validated": assignment["benchmark_id"], "assignment_digest": saved["digest"]}:
+            raise HelperError("helper validated a different assignment")
+
     def compute(self, assignment, nonce):
         if self.saved is None:
             raise HelperError("helper assignment is not prepared")
@@ -86,10 +94,11 @@ class FleetRuntime:
             self.local.validate(assignment, offer)
         if (assignment["compute_type"], offer["resource"]) != (self.compute_type, self.resource):
             raise StateError("fleet differs from the saved assignment's compute type")
-        handed_over = self.store.assignment(assignment["benchmark_id"])["acknowledged_at"]
+        saved = self.store.assignment(assignment["benchmark_id"])
+        handed_over = saved["acknowledged_at"]
         for remote in self.remotes:
             try:
-                remote.check_resources()
+                remote.validate(assignment, saved, offer)
             except HelperError:
                 if not handed_over:
                     raise

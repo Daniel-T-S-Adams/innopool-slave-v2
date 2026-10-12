@@ -34,6 +34,9 @@ class Remote(Local):
         assert saved["acknowledged_at"]
         assert saved["digest"] == digest(saved["payload"])
         super().prepare(value)
+    def validate(self, value, saved, offer):
+        self.check_resources()
+        super().validate(value, offer)
     def compute(self, value, nonce):
         if self.fail_compute:
             self.disconnected = True
@@ -165,6 +168,14 @@ class HelperTests(unittest.TestCase):
                     self.helper.prepare({**self.prepare, key: value})
         self.assertEqual(self.runtime.prepared, 0)
 
+    def test_helper_validates_before_handover_without_starting_or_saving_work(self):
+        message = {key: value for key, value in self.prepare.items() if key != 'handed_over_at'}
+        self.assertEqual(self.helper.validate(message), {
+            'validated': 'fixture-benchmark', 'assignment_digest': self.compute['assignment_digest']})
+        self.assertEqual(self.runtime.prepared, 0)
+        with self.assertRaises(StateError):
+            self.store.assignment('fixture-benchmark')
+
     def test_helper_caches_complete_output_before_reply_and_preserves_it_after_reconnect(self):
         self.helper.prepare(self.prepare)
         self.assertIsNone(self.helper.cached(self.compute))
@@ -242,6 +253,7 @@ finally: store.close()
                      "acknowledged_at": "2026-10-12T10:00:00+00:00"}
             offer = {"resource": "CPU", "compute_type": "aws_c7a"}
             try:
+                remote.validate(value, saved, offer)
                 remote.prepare(value, saved, offer)
                 with ThreadPoolExecutor(max_workers=2) as executor:
                     results = list(executor.map(lambda nonce: remote.compute(value, nonce), [0, 1]))

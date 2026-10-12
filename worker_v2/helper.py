@@ -40,7 +40,7 @@ class Helper:
                 "nonce_timeout_seconds": self.config.get("nonce_timeout_seconds", 1800),
                 "master_id": self.config["master_id"]}
 
-    def prepare(self, message):
+    def validated_assignment(self, message):
         if message["master_id"] != self.config["master_id"]:
             raise StateError("helper is bound to another master")
         offer = message["offer"]
@@ -48,10 +48,23 @@ class Helper:
                 self.config["resource"], self.config["compute_type"]):
             raise StateError("helper cannot execute this verification compute type")
         payload = message["assignment_payload"]
+        if not isinstance(payload, str) or digest(payload) != message["assignment_digest"]:
+            raise StateError("helper assignment digest does not match its payload")
         value = json.loads(payload)
+        if value.get("api_version") != "2.0":
+            raise StateError("helper assignment API version is incompatible")
+        self.runtime.validate(value, offer)
+        return value
+
+    def validate(self, message):
+        value = self.validated_assignment(message)
+        return {"validated": value["benchmark_id"], "assignment_digest": message["assignment_digest"]}
+
+    def prepare(self, message):
+        value = self.validated_assignment(message)
         if self.prepared is not None and self.prepared != value["benchmark_id"]:
             raise StateError("release the previous helper assignment first")
-        self.runtime.validate(value, offer)
+        payload = message["assignment_payload"]
         self.store.save_assignment(value["benchmark_id"], payload, message["assignment_digest"])
         self.store.acknowledge(value["benchmark_id"], message["handed_over_at"])
         self.runtime.prepare(value)
@@ -172,7 +185,7 @@ def serve(helper, source=sys.stdin, target=sys.stdout):
                     future.add_done_callback(lambda future, message=message: events.put(("complete", (message, future))))
                 elif operation == "hello":
                     reply(message, helper.hello())
-                elif operation in ("prepare", "release"):
+                elif operation in ("validate", "prepare", "release"):
                     if active:
                         raise StateError("helper cannot change runtimes during computation")
                     reply(message, getattr(helper, operation)(message))
