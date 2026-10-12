@@ -10,17 +10,23 @@ points at the deployed revision and `main` is the integration branch.
 
 The direct TIG/GitHub binary download update is prepared on
 `cleanup/direct-algorithm-downloads`. On 11 October 2026 all 33 v2 tests and
-17 inherited regression tests passed locally. It has not been deployed.
+17 inherited regression tests passed locally. On 12 October the optional SSH
+member master passed 46 v2 tests and 17 inherited tests. A real SSH/Docker subset
+check verified eight knapsack nonces and cached-output recovery on `poolminer1`;
+the intended two-server benchmark remains pending SSH access to its helper.
+These changes have not been deployed to the production pool or served worker.
 
 - [Worker behavior and configuration](docs/WORKER_V2.md)
+- [Configure a member master and SSH helpers](docs/SSH_MEMBER_MASTER_V2.md)
 - [Install, drain and update a pinned worker](docs/INSTALL_V2.md)
 - [Preserved baseline and development workflow](docs/REDESIGN.md)
 
 Members may use their own master to coordinate compatible machines and submit
 one complete benchmark through the existing pool API. See
 [member-managed masters](docs/WORKER_V2.md#member-managed-masters). This reference
-worker provides local nonce concurrency; members implement any remote scheduling
-and communication themselves.
+worker provides local nonce concurrency and optional SSH helpers. Members
+configure and operate the helper machines and their communication, or provide
+their own compatible master.
 
 The installer uses `Daniel-T-S-Adams/innopool-slave-v2`, verifies the pool’s
 recorded tag and full commit, and creates a separate installation. Restarting
