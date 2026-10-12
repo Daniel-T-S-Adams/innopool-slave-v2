@@ -111,7 +111,7 @@ implementation does not guess a finalization date and delete evidence.
 Local tests cover local/helper aggregation, exact whole-benchmark proofs,
 disconnection and master restart, cached helper output, assignment/architecture
 checks, strict SSH configuration, and concurrent request/response matching
-through real subprocess pipes. **45 v2 tests and 17 inherited tests passed.**
+through real subprocess pipes. **46 v2 tests and 17 inherited tests passed.**
 Computation and the SSH executable in those tests are simulated.
 
 A subsequent real SSH/Docker check used a workspace coordinator and an isolated

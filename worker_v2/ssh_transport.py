@@ -3,6 +3,7 @@
 from collections import deque
 from concurrent.futures import Future, TimeoutError
 import json
+import os
 from pathlib import PurePosixPath
 import re
 import shlex
@@ -65,8 +66,13 @@ class SSHTransport:
         self.close()
         self.failure = None
         self.errors.clear()
+        environment = os.environ.copy()
+        # SSH configurations may forward environment variables. The member's
+        # pool credential must stay in the uploader process.
+        environment.pop("POOL_V2_EXECUTION_TOKEN", None)
         self.process = self.popen(self.arguments, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1)
+                                  stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1,
+                                  env=environment)
         process = self.process
 
         def read_errors():

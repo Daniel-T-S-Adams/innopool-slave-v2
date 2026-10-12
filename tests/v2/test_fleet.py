@@ -1,10 +1,12 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from test_worker import FakePool, FakeRuntime, assignment, leaf
 from worker_v2.fleet import FleetRuntime, RemoteRuntime
@@ -212,6 +214,17 @@ class HelperTests(unittest.TestCase):
 
 
 class TransportTests(unittest.TestCase):
+    def test_member_execution_token_is_removed_from_the_ssh_child_environment(self):
+        def popen(_arguments, **kwargs):
+            self.assertNotIn('POOL_V2_EXECUTION_TOKEN', kwargs['env'])
+            return subprocess.Popen([sys.executable, '-c', 'import sys; sys.stdin.read()'], **kwargs)
+        transport = SSHTransport(connection_config(), popen=popen)
+        with patch.dict(os.environ, {'POOL_V2_EXECUTION_TOKEN': 'master-only-fixture-token'}):
+            try:
+                transport.start()
+            finally:
+                transport.close()
+
     def test_ssh_requires_pinned_host_key_and_quotes_remote_paths(self):
         config = connection_config()
         config["code_directory"] = "/tmp/member 'quoted' $(touch bad)"
