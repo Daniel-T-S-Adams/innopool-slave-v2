@@ -1,4 +1,4 @@
-# InnoPool v2 member worker
+# Community Pool member worker
 
 This fork implements whole-benchmark assignments, durable member evidence and
 explicit installation of a paired release. The pool's mainnet deployment pins
