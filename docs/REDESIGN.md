@@ -4,9 +4,10 @@ This fork implements the whole-benchmark member protocol in the separate
 `worker_v2` package. See [the worker guide](WORKER_V2.md) for current behavior,
 development configuration and validation limits. The inherited runtime remains
 the original batch worker as a historical reference. The mainnet pool
-serves pinned v2 worker `fd29279` (`mainnet-cpu-pilot-20261007`); current `main`
+serves pinned v2 worker `a715041`
+(`mainnet-direct-binaries-member-master-20261013`); current `main`
 is the development branch. See [installation](INSTALL_V2.md) and the pool's
-[operations record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+[operations record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
 The mainnet CPU attempt expired, so release availability does not establish
 successful protocol completion.
 
@@ -56,8 +57,11 @@ and [installer guide](INSTALL_V2.md) describe v2; inherited batch-worker behavio
 is retained in [the legacy guide](LEGACY_WORKER.md).
 
 CPU testnet execution and activation passed in September. The mainnet attempt
-on 7–9 October completed after its protocol lifetime and was rejected. Measure
-the whole intended workload on its actual hardware before another paid attempt.
+on 7–9 October completed after its protocol lifetime and was rejected. On
+13 October the intended master and helper passed all five possible current
+`c003_a154` tracks with real runtime/verifier code; the slowest took 12m33s.
+All five result/proof sets passed an isolated pool API replay. Repeat timing
+when the workload or hardware changes before another paid attempt.
 GPU execution, timely mainnet completion and evidence through settlement remain
 open checks. Pool cleanup resolves the evidenced late-result attempt as expired
 without deleting member evidence or releasing collateral early.

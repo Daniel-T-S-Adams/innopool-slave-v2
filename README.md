@@ -2,21 +2,24 @@
 
 This fork implements whole-benchmark assignments, durable member evidence and
 explicit installation of a paired release. The pool's mainnet deployment pins
-this fork's commit `fd29279` (tag `mainnet-cpu-pilot-20261007`); new work is
-paused following a CPU attempt that expired before TIG accepted its results.
-See the pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+this fork's commit `a715041` (tag
+`mainnet-direct-binaries-member-master-20261013`), paired with pool `f5f1028`.
+The pair was activated on 13 October 2026. New work remains paused while
+storage cleanup and a separately approved mainnet trial are completed.
+See the pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
 `release/v2`
 points at the deployed revision and `main` is the integration branch.
 
-The direct TIG/GitHub binary download update is prepared on
-`cleanup/direct-algorithm-downloads`. On 11 October 2026 all 33 v2 tests and
-17 inherited regression tests passed locally. On 12 October the optional SSH
-member master passed 46 v2 tests and 17 inherited tests. The real two-server
-rehearsal used `poolminer1` and its SSH helper: all 200 knapsack nonces and three
-proofs passed in 15 minutes 8 seconds, including deliberate disconnect/crash
-recovery. The isolated pool API accepted uploads and retries; no paid TIG
-submission was made. See the [SSH guide](docs/SSH_MEMBER_MASTER_V2.md).
-These changes have not been deployed to the production pool or served worker.
+The deployed worker downloads binaries directly from the verified public
+TIG/GitHub source and supports a member master with optional SSH helpers.
+All 46 v2 tests and 17 inherited tests passed. On 13 October the intended
+master and helper completed all five possible CPU tracks for `c003_a154`:
+12,400 outputs and 15 sampled proofs passed, with a slowest track of 12m33s.
+All five result/proof sets also passed an isolated pool API replay. The
+12 October rehearsal separately checked disconnect and crash recovery.
+These checks used real runtime/verifier code with simulated pool/TIG responses;
+successful paid mainnet acceptance and later settlement remain open.
+See the [SSH guide](docs/SSH_MEMBER_MASTER_V2.md).
 
 - [Worker behavior and configuration](docs/WORKER_V2.md)
 - [Configure a member master and SSH helpers](docs/SSH_MEMBER_MASTER_V2.md)

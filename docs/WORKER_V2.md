@@ -16,9 +16,9 @@ Members implement internal transport, scheduling, recovery and output aggregatio
 The pool's [member master contract](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/MEMBER_MASTER_V2.md)
 specifies that integration. Paired pool tests exercise a simulated master
 combining helper outputs, recovering missing work after restart, and submitting
-one complete result and sampled proofs. SSH transport and recovery now have
-local tests; execution on two distinct intended machines remains unverified.
-These changes are not deployed.
+one complete result and sampled proofs. SSH transport and recovery passed
+local tests and a real two-server rehearsal. This mode is included in the
+worker served by the production pool since 13 October 2026.
 
 Every helper used for an assignment must match its verification compute type
 and compatible architecture, algorithm binary and runtime. A custom master may
@@ -112,13 +112,11 @@ ownership and never scan or stop legacy containers. Archive filenames use TIG's
 algorithm name (such as `titan_killer`), then map to the immutable algorithm ID
 within this benchmark's directory.
 
-The direct-download changes are implemented on the storage cleanup branch.
-Local tests and the 11 October real single-host CPU check passed; the measured
-knapsack workload completed its 200 nonces, while job scheduling failed the
-eight-minute single-nonce probe. These changes are not deployed. Mainnet still
-serves worker `fd29279` as last checked on 9 October.
-The pool's `docs/LEAN_STORAGE.md` records the implementation and activation
-sequence.
+Direct downloads are deployed in worker `a715041`, paired with pool `f5f1028`
+on 13 October. The pool stores verified binary metadata for new assignments;
+members fetch and verify the archive themselves. The pool's
+[lean rollout record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/LEAN_ROLLOUT_20261013.md)
+records activation and storage conversion progress.
 
 ## Validation and current limits
 
@@ -136,17 +134,22 @@ TIG proof. The pool repository also runs this worker against its actual API
 using simulated TIG responses and a simulated compute runtime.
 
 Real CPU testnet execution, activation and paired installation passed in
-September. The mainnet pool now serves worker `fd29279`, tag
-`mainnet-cpu-pilot-20261007`. The 7–9 October mainnet CPU attempt finished after
+September. The mainnet pool now serves worker `a715041`, tag
+`mainnet-direct-binaries-member-master-20261013`. The 7–9 October mainnet CPU attempt finished after
 the challenge's 120-block lifetime and TIG rejected the results. It is not a
 successful mainnet completion check. The pool cleanup records this as expired;
 the worker recognizes that terminal state and retains its saved evidence.
 
 The runner currently computes all missing nonces inside one `step()` before
 checking the pool again. Its per-nonce timeout is not a whole-benchmark deadline
-or a capacity guarantee. Benchmark viability must be measured on the intended
-hardware and limits before another paid attempt. GPU execution, timely mainnet
+or a capacity guarantee. On 13 October the intended ARM64 master and helper,
+with six workers each, completed all five possible current `c003_a154` CPU
+tracks: 12,400 outputs and 15 sampled proofs passed, and the slowest track took
+12m33s. An isolated pool API accepted all five result/proof sets and retries.
+These checks used simulated TIG acceptance and do not prove a paid completion.
+Benchmark viability must be measured again if the algorithm, workload or
+hardware changes. GPU execution, timely mainnet
 completion, interruption during live compute, funded takeover and retention
 through settlement remain open. See the pool's
-[operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+[operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
 Use the pinned v2 installer rather than legacy batch-worker scripts.

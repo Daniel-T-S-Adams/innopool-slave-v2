@@ -5,6 +5,15 @@ local nonce computation and explicitly configured helper servers. The default
 installer still starts a local worker; it does not provision helper accounts,
 keys, services or networking. The pool API and benchmark format are unchanged.
 
+Deployed in worker `a715041` on 13 October 2026, paired with pool `f5f1028`.
+The intended master and helper, with six workers each, passed all five possible
+current `c003_a154` CPU tracks: 12,400 outputs and 15 sampled proofs, with a
+slowest track of 12m33s. A separate 12 October rehearsal passed deliberate
+disconnect and crash recovery. These checks used real runtime/verifier code
+and simulated TIG responses. Paid mainnet acceptance and settlement remain open;
+ordinary pool work is paused. See the
+[pool rollout record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/LEAN_ROLLOUT_20261013.md).
+
 ## How it works
 
 The master saves and acknowledges the complete pool assignment, then sends its
