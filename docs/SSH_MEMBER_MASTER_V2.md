@@ -1,5 +1,13 @@
 # Member master with SSH helpers
 
+The corrected 14 October mainnet trial activated successfully at TIG height
+**1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs
+(1,968/2,032); result upload took **12m40s**. Confirmed proof and detailed TIG
+records show no verification failure. All results/proofs match the stored pool
+payloads. New work remains paused; later settlement and storage cleanup remain
+open. The earlier runtime-pin failure is preserved in the
+[trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
+
 The 14 October mainnet trial completed its 4,000 nonces in 10m31s but failed
 later TIG solution verification because the configured knapsack runtime was
 0.0.7 rather than current 0.0.8. All five corrected unpaid tracks passed
@@ -19,7 +27,7 @@ The intended master and helper, with six workers each, passed all five possible
 current `c003_a154` CPU tracks: 12,400 outputs and 15 sampled proofs, with a
 slowest track of 12m33s. A separate 12 October rehearsal passed deliberate
 disconnect and crash recovery. These checks used real runtime/verifier code
-and simulated TIG responses. Paid mainnet acceptance and settlement remain open;
+and simulated TIG responses. Corrected paid mainnet activation passed; settlement remains open;
 ordinary pool work is paused. See the
 [pool rollout record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/LEAN_ROLLOUT_20261013.md).
 

@@ -1,5 +1,13 @@
 # InnoPool v2 member worker
 
+The corrected 14 October mainnet trial activated successfully at TIG height
+**1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs
+(1,968/2,032); result upload took **12m40s**. Confirmed proof and detailed TIG
+records show no verification failure. All results/proofs match the stored pool
+payloads. New work remains paused; later settlement and storage cleanup remain
+open. The earlier runtime-pin failure is preserved in the
+[trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
+
 The [14 October mainnet CPU trial](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md)
 completed in time but failed solution verification because its knapsack
 runtime pin was outdated. The corrected 0.0.8 runtime passed all five unpaid
@@ -19,7 +27,7 @@ explicit paired installation. It downloads algorithm binaries directly from
 the verified public TIG/GitHub source and supports a member master with
 optional SSH helpers. The 12 October rehearsal also checked disconnect/crash
 recovery. Unpaid checks use real runtime/verifier code and simulated pool/TIG
-replies. Successful paid mainnet activation and later settlement remain open;
+replies. Successful corrected paid activation passed; later settlement remains open;
 new work is paused and another paid trial requires fresh approval. See the
 pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
 `release/v2` follows the deployed revision; `main` is the integration branch.

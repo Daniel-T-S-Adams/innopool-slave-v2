@@ -1,5 +1,13 @@
 # Whole-benchmark member worker
 
+The corrected 14 October mainnet trial activated successfully at TIG height
+**1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs
+(1,968/2,032); result upload took **12m40s**. Confirmed proof and detailed TIG
+records show no verification failure. All results/proofs match the stored pool
+payloads. New work remains paused; later settlement and storage cleanup remain
+open. The earlier runtime-pin failure is preserved in the
+[trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
+
 The 14 October mainnet trial exposed an outdated knapsack runtime pin. It
 completed and uploaded 4,000 nonces in 10m31s, then failed TIG's later solution
 verification. The current 0.0.8 verifier reproduced TIG's rejection of the
@@ -162,8 +170,7 @@ tracks: 12,400 outputs and 15 sampled proofs passed, and the slowest track took
 12m33s. An isolated pool API accepted all five result/proof sets and retries.
 These checks used simulated TIG acceptance and do not prove a paid completion.
 Benchmark viability must be measured again if the algorithm, workload or
-hardware changes. GPU execution, timely mainnet
-completion, interruption during live compute, funded takeover and retention
+hardware changes. GPU execution, interruption during live compute, funded takeover and retention
 through settlement remain open. See the pool's
 [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
 Use the pinned v2 installer rather than legacy batch-worker scripts.
