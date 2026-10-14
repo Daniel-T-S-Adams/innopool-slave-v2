@@ -2,13 +2,14 @@
 
 The corrected 14 October mainnet trial activated successfully at TIG height
 **1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs
-(1,968/2,032); result upload took **12m40s**. Confirmed proof and detailed TIG
-records show no verification failure. All results/proofs match the stored pool
-payloads. New work remains paused; later settlement and storage cleanup remain
-open. The earlier runtime-pin failure is preserved in the
+(1,968/2,032); results were uploaded **12m40s after handover**.
+Confirmed proof and detailed TIG records show no verification failure. All results/proofs match the stored pool
+payloads. New work remains paused; reward settlement remains open. The pool
+storage ordering fix is deployed. The earlier runtime-pin failure is preserved
+in the
 [trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
 
-The [14 October mainnet CPU trial](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md)
+The first [14 October mainnet CPU trial](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md)
 completed in time but failed solution verification because its knapsack
 runtime pin was outdated. The corrected 0.0.8 runtime passed all five unpaid
 tracks: 12,400 outputs and 15 sampled proofs, with a slowest track of 12m29s.
@@ -16,8 +17,8 @@ Actual uploads and retries passed an isolated pool API replay.
 
 The production pool now serves worker `dddad9` (full commit
 `dddad9df9b0d051cf004a904fe7b7361f9816c43`, tag
-`mainnet-runtime-release-guard-20261014`), paired with pool `a65b3a8`, activated
-on 14 October at 10:18 UTC. Its runtime release guard checks the pool's digest
+`mainnet-runtime-release-guard-20261014`), now paired with pool `59a3446` after the 14 October storage fix.
+Its runtime release guard checks the pool's digest
 and every local/helper runtime map before requesting new work. All 53 v2 and
 17 inherited tests passed. Both task-owned member CPU installations use the
 corrected worker; original member files remain separate.

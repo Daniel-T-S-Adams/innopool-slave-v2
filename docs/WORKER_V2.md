@@ -2,13 +2,14 @@
 
 The corrected 14 October mainnet trial activated successfully at TIG height
 **1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs
-(1,968/2,032); result upload took **12m40s**. Confirmed proof and detailed TIG
-records show no verification failure. All results/proofs match the stored pool
-payloads. New work remains paused; later settlement and storage cleanup remain
-open. The earlier runtime-pin failure is preserved in the
+(1,968/2,032); results were uploaded **12m40s after handover**.
+Confirmed proof and detailed TIG records show no verification failure. All results/proofs match the stored pool
+payloads. New work remains paused; reward settlement remains open. The pool
+storage ordering fix is deployed. The earlier runtime-pin failure is preserved
+in the
 [trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
 
-The 14 October mainnet trial exposed an outdated knapsack runtime pin. It
+The first 14 October mainnet trial exposed an outdated knapsack runtime pin. It
 completed and uploaded 4,000 nonces in 10m31s, then failed TIG's later solution
 verification. The current 0.0.8 verifier reproduced TIG's rejection of the
 0.0.7 outputs. All five corrected unpaid tracks passed: 12,400 outputs, 15 sampled proofs,
@@ -19,8 +20,8 @@ offer or queued-offer refresh. It verifies the pool's release digest and checks
 every configured backend against the published runtime map. A mismatch stops
 new work and requires an explicit drained update of the master and helpers.
 Already handed-over work can still drain; saved evidence is preserved. This
-guard is served in worker `dddad9`, paired with pool `a65b3a8` since 10:18 UTC
-on 14 October.
+guard is served in worker `dddad9`, now paired with pool `59a3446` after
+the 14 October storage fix.
 
 `worker_v2` implements member API version `2.0`. It runs independently of the
 legacy worker and owns one entire benchmark at a time. Members may run their
@@ -134,8 +135,8 @@ ownership and never scan or stop legacy containers. Archive filenames use TIG's
 algorithm name (such as `titan_killer`), then map to the immutable algorithm ID
 within this benchmark's directory.
 
-Direct downloads are deployed in worker `a715041`, paired with pool `f5f1028`
-on 13 October. The pool stores verified binary metadata for new assignments;
+Direct downloads first deployed in worker `a715041`, paired with pool `f5f1028`
+on 13 October. They remain in the currently served worker `dddad9`. The pool stores verified binary metadata for new assignments;
 members fetch and verify the archive themselves. The pool's
 [lean rollout record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/LEAN_ROLLOUT_20261013.md)
 records activation and storage conversion progress.
@@ -157,7 +158,7 @@ using simulated TIG responses and a simulated compute runtime.
 
 Real CPU testnet execution, activation and paired installation passed in
 September. The mainnet pool now serves worker `dddad9`, tag
-`mainnet-runtime-release-guard-20261014`, paired with pool `a65b3a8`. The 7–9 October mainnet CPU attempt finished after
+`mainnet-runtime-release-guard-20261014`, paired with pool `59a3446`. The 7–9 October mainnet CPU attempt finished after
 the challenge's 120-block lifetime and TIG rejected the results. It is not a
 successful mainnet completion check. The pool cleanup records this as expired;
 the worker recognizes that terminal state and retains its saved evidence.
