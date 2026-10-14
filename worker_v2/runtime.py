@@ -40,6 +40,11 @@ class DockerRuntime:
             if info.stdout.strip() != '"systemd" "2"':
                 raise StateError("shared worker limits require Docker with systemd and cgroup v2")
 
+    def validate_release(self, release):
+        images = release.get('runtime_images')
+        if not isinstance(images, dict) or images != self.images:
+            raise StateError('The pool runtime changed; drain existing work and update this worker and its helpers before requesting new work')
+
     def validate(self, assignment, offer):
         settings = assignment.get("settings", {})
         algorithm, challenge = settings.get("algorithm_id", ""), settings.get("challenge_id", "")

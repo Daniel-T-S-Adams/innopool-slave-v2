@@ -1,5 +1,18 @@
 # Whole-benchmark member worker
 
+The 14 October mainnet trial exposed an outdated knapsack runtime pin. It
+completed and uploaded 4,000 nonces in 10m31s, then failed TIG's later solution
+verification. The current 0.0.8 verifier reproduced TIG's rejection of the
+0.0.7 outputs. Corrected unpaid checks are running; ordinary pool work remains
+paused. See the [actual trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
+
+This branch adds a runtime release check before a new offer, an unlinked saved
+offer or queued-offer refresh. It verifies the pool's release digest and checks
+every configured backend against the published runtime map. A mismatch stops
+new work and requires an explicit drained update of the master and helpers.
+Already handed-over work can still drain; saved evidence is preserved. This
+guard has not yet replaced the served `a715041` worker.
+
 `worker_v2` implements member API version `2.0`. It runs independently of the
 legacy worker and owns one entire benchmark at a time. Members may run their
 own compatible clients or multiple installations; the pool enforces the shared

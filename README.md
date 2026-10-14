@@ -1,5 +1,11 @@
 # InnoPool v2 member worker
 
+The [14 October mainnet CPU trial](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md)
+completed in time but exposed an outdated runtime pin. Corrected unpaid checks
+are running. This branch adds a check that stops new work when local/helper
+runtime images differ from the pool's published requirement; the served worker
+remains `a715041` until the corrected pair is activated.
+
 This fork implements whole-benchmark assignments, durable member evidence and
 explicit installation of a paired release. The pool's mainnet deployment pins
 this fork's commit `a715041` (tag

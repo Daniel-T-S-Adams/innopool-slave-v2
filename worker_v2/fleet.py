@@ -84,6 +84,11 @@ class FleetRuntime:
         for backend in self.backends:
             backend.check_resources()
 
+    def validate_release(self, release):
+        images = release.get('runtime_images')
+        if not isinstance(images, dict) or any(backend.images != images for backend in self.backends):
+            raise StateError('The pool runtime changed; drain existing work and update the master and every helper before requesting new work')
+
     def before_offer(self):
         # Recheck every helper before promising its capacity for another benchmark.
         self.check_resources()
