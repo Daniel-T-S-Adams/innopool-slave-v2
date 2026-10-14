@@ -2,11 +2,11 @@
 
 The 14 October mainnet trial completed its 4,000 nonces in 10m31s but failed
 later TIG solution verification because the configured knapsack runtime was
-0.0.7 rather than current 0.0.8. The corrected runtime is being checked unpaid
-on the intended master/helper. Keep every helper's complete runtime-image map
+0.0.7 rather than current 0.0.8. All five corrected unpaid tracks passed
+on the intended master/helper (12,400 outputs, 15 proofs; slowest 12m29s). Keep every helper's complete runtime-image map
 equal to the master's and the pool's current requirement before offering work.
-The new release guard on this branch stops stale offers; it is not yet served
-by the production installer. See the
+The release guard stops stale offers and is served by the production
+installer in worker `dddad9`, paired with pool `a65b3a8` since 14 October. See the
 [trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
 
 Implemented on 12 October 2026. This optional mode lets one pool member combine

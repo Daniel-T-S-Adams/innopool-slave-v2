@@ -1,30 +1,28 @@
 # InnoPool v2 member worker
 
 The [14 October mainnet CPU trial](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md)
-completed in time but exposed an outdated runtime pin. Corrected unpaid checks
-are running. This branch adds a check that stops new work when local/helper
-runtime images differ from the pool's published requirement; the served worker
-remains `a715041` until the corrected pair is activated.
+completed in time but failed solution verification because its knapsack
+runtime pin was outdated. The corrected 0.0.8 runtime passed all five unpaid
+tracks: 12,400 outputs and 15 sampled proofs, with a slowest track of 12m29s.
+Actual uploads and retries passed an isolated pool API replay.
+
+The production pool now serves worker `dddad9` (full commit
+`dddad9df9b0d051cf004a904fe7b7361f9816c43`, tag
+`mainnet-runtime-release-guard-20261014`), paired with pool `a65b3a8`, activated
+on 14 October at 10:18 UTC. Its runtime release guard checks the pool's digest
+and every local/helper runtime map before requesting new work. All 53 v2 and
+17 inherited tests passed. Both task-owned member CPU installations use the
+corrected worker; original member files remain separate.
 
 This fork implements whole-benchmark assignments, durable member evidence and
-explicit installation of a paired release. The pool's mainnet deployment pins
-this fork's commit `a715041` (tag
-`mainnet-direct-binaries-member-master-20261013`), paired with pool `f5f1028`.
-The pair was activated on 13 October 2026. New work remains paused while
-storage cleanup and a separately approved mainnet trial are completed.
-See the pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
-`release/v2`
-points at the deployed revision and `main` is the integration branch.
-
-The deployed worker downloads binaries directly from the verified public
-TIG/GitHub source and supports a member master with optional SSH helpers.
-All 46 v2 tests and 17 inherited tests passed. On 13 October the intended
-master and helper completed all five possible CPU tracks for `c003_a154`:
-12,400 outputs and 15 sampled proofs passed, with a slowest track of 12m33s.
-All five result/proof sets also passed an isolated pool API replay. The
-12 October rehearsal separately checked disconnect and crash recovery.
-These checks used real runtime/verifier code with simulated pool/TIG responses;
-successful paid mainnet acceptance and later settlement remain open.
+explicit paired installation. It downloads algorithm binaries directly from
+the verified public TIG/GitHub source and supports a member master with
+optional SSH helpers. The 12 October rehearsal also checked disconnect/crash
+recovery. Unpaid checks use real runtime/verifier code and simulated pool/TIG
+replies. Successful paid mainnet activation and later settlement remain open;
+new work is paused and another paid trial requires fresh approval. See the
+pool's [operations status](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
+`release/v2` follows the deployed revision; `main` is the integration branch.
 See the [SSH guide](docs/SSH_MEMBER_MASTER_V2.md).
 
 - [Worker behavior and configuration](docs/WORKER_V2.md)
