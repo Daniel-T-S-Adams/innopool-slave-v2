@@ -1,4 +1,4 @@
-# InnoPool v2 member worker
+# Community Pool member worker
 
 The corrected 14 October mainnet trial activated successfully at TIG height
 **1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs

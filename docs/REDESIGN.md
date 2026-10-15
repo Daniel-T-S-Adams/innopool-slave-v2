@@ -1,4 +1,4 @@
-# InnoPool v2 worker development
+# Community Pool worker development
 
 This fork implements the whole-benchmark member protocol in the separate
 `worker_v2` package. See [the worker guide](WORKER_V2.md) for current behavior,
