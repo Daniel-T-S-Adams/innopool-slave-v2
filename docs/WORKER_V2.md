@@ -125,7 +125,10 @@ direct-download assignments.
 New pool assignments supply a direct public TIG/GitHub URL and verified SHA-256.
 The worker permits public GET redirects only between allowed HTTPS sources,
 restricts GitHub media to TIG's official repository, forwards no credentials,
-and verifies the archive before extraction. Pool API requests refuse redirects.
+and verifies the archive before extraction. Extracted libraries are kept under
+the worker's `runtime/libraries/<sha256>/` directory and reused by later
+assignments with the same checksum, so a stable algorithm is downloaded once
+per machine. Pool API requests refuse redirects.
 The worker
 extracts only expected library/PTX files, and starts containers with its own
 deployment and benchmark labels. Libraries are mounted read-only; the results
