@@ -1,9 +1,38 @@
 # Member master with SSH helpers
 
+The corrected 14 October mainnet trial activated successfully at TIG height
+**1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs
+(1,968/2,032); results were uploaded **12m40s after handover**.
+Confirmed proof and detailed TIG records show no verification failure. All results/proofs match the stored pool
+payloads. New work remains paused; reward settlement remains open. The pool
+storage ordering fix is deployed. The earlier runtime-pin failure is preserved
+in the
+[trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
+
+The first 14 October mainnet trial completed its 4,000 nonces in 10m31s but failed
+later TIG solution verification because the configured knapsack runtime was
+0.0.7 rather than current 0.0.8. All five corrected unpaid tracks passed
+on the intended master/helper (12,400 outputs, 15 proofs; slowest 12m29s). Keep every helper's complete runtime-image map
+equal to the master's and the pool's current requirement before offering work.
+The release guard stops stale offers and is served by the production
+installer in worker `dddad9`, now paired with pool `59a3446` after the
+14 October storage fix. See the
+[trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
+
 Implemented on 12 October 2026. This optional mode lets one pool member combine
 local nonce computation and explicitly configured helper servers. The default
 installer still starts a local worker; it does not provision helper accounts,
 keys, services or networking. The pool API and benchmark format are unchanged.
+
+First deployed in worker `a715041` on 13 October 2026, paired with pool `f5f1028`.
+The same helper implementation remains in the currently served worker `dddad9`.
+The intended master and helper, with six workers each, passed all five possible
+current `c003_a154` CPU tracks: 12,400 outputs and 15 sampled proofs, with a
+slowest track of 12m33s. A separate 12 October rehearsal passed deliberate
+disconnect and crash recovery. These checks used real runtime/verifier code
+and simulated TIG responses. Corrected paid mainnet activation passed; settlement remains open;
+ordinary pool work is paused. See the
+[pool rollout record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/LEAN_ROLLOUT_20261013.md).
 
 ## How it works
 
@@ -139,5 +168,6 @@ autostart worker was created. Temporary slice definitions disappear on reboot
 and must be installed deliberately for a persistent release.
 
 See the pool's [full verification record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/SSH_MEMBER_MASTER_VERIFICATION.md).
-Paired production activation, actual TIG acceptance, timely job-scheduling
-execution and GPU validation remain pending.
+Paired production activation and corrected paid knapsack activation passed on
+13–14 October. Timely job-scheduling execution, GPU validation and reward
+settlement remain pending.

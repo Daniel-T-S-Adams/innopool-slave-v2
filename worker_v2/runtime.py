@@ -3,11 +3,14 @@
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import subprocess
 import tarfile
+import tempfile
 from urllib.request import Request, build_opener
 
 from .artifacts import ArtifactRedirect, DEFAULT_BINARY_HOSTS, check_url
@@ -32,6 +35,10 @@ class DockerRuntime:
         if self.arch is None:
             raise StateError("unsupported runtime CPU architecture")
         self.namespace = hashlib.sha256(str(self.directory).encode()).hexdigest()[:12]
+        # Extracted libraries keyed by archive checksum, shared by every
+        # assignment of the same algorithm on this machine.
+        self.libraries = self.directory / "libraries"
+        self.libraries.mkdir(exist_ok=True)
 
     def check_resources(self):
         if self.limits and self.limits.cgroup_parent:
@@ -39,6 +46,11 @@ class DockerRuntime:
             info = self._run(["docker", "info", "--format", "{{json .CgroupDriver}} {{json .CgroupVersion}}"])
             if info.stdout.strip() != '"systemd" "2"':
                 raise StateError("shared worker limits require Docker with systemd and cgroup v2")
+
+    def validate_release(self, release):
+        images = release.get('runtime_images')
+        if not isinstance(images, dict) or images != self.images:
+            raise StateError('The pool runtime changed; drain existing work and update this worker and its helpers before requesting new work')
 
     def validate(self, assignment, offer):
         settings = assignment.get("settings", {})
@@ -84,22 +96,24 @@ class DockerRuntime:
             return None
         return json.loads(result.stdout)[0]
 
-    def prepare(self, assignment):
-        root, name = self._paths(assignment)
-        root.mkdir(parents=True, exist_ok=True)
-        (root / "results").mkdir(exist_ok=True)
-        algorithm = assignment["settings"]["algorithm_id"]
-        source_name = assignment.get("algorithm_name",algorithm)
-        library = root / (algorithm + ".so")
-        marker = root / "archive.sha256"
-        if not library.exists() or not marker.exists() or marker.read_text() != assignment["binary_sha256"]:
-            request = Request(assignment["binary_url"], headers={"User-Agent": "innopool-v2-member/2.0"})
-            check_url(assignment["binary_url"], self.binary_hosts)
-            with build_opener(ArtifactRedirect(self.binary_hosts)).open(request, timeout=60) as response:
-                archive = response.read(64*1024*1024+1)
-            if len(archive) > 64*1024*1024 or hashlib.sha256(archive).hexdigest() != assignment["binary_sha256"]:
-                raise StateError("algorithm archive checksum or size is invalid")
-            wanted = {f"{self.arch}/{source_name}.so": library, f"ptx/{source_name}.ptx": root / (algorithm + ".ptx")}
+    def _library_cache(self, assignment, source_name):
+        """Extracted entries of one checked archive, shared by every assignment with that checksum."""
+        cache = self.libraries / assignment["binary_sha256"]
+        wanted = {f"{self.arch}/{source_name}.so": cache / self.arch / (source_name + ".so")}
+        if assignment["compute_type"] == "aws_g4dn":
+            wanted[f"ptx/{source_name}.ptx"] = cache / "ptx" / (source_name + ".ptx")
+        return wanted
+
+    def _fetch_archive(self, assignment, source_name, wanted):
+        """Download, verify and extract into the shared cache; a failed check caches nothing."""
+        request = Request(assignment["binary_url"], headers={"User-Agent": "innopool-v2-member/2.0"})
+        check_url(assignment["binary_url"], self.binary_hosts)
+        with build_opener(ArtifactRedirect(self.binary_hosts)).open(request, timeout=60) as response:
+            archive = response.read(64*1024*1024+1)
+        if len(archive) > 64*1024*1024 or hashlib.sha256(archive).hexdigest() != assignment["binary_sha256"]:
+            raise StateError("algorithm archive checksum or size is invalid")
+        staging = Path(tempfile.mkdtemp(prefix=".extracting-", dir=self.libraries))
+        try:
             found, total = set(), 0
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r|gz") as tar:
                 for member in tar:
@@ -110,12 +124,35 @@ class DockerRuntime:
                         continue
                     if not member.isfile() or member.size > 64*1024*1024 or member.name in found:
                         raise StateError("unsafe or duplicate algorithm archive entry")
-                    wanted[member.name].write_bytes(tar.extractfile(member).read())
+                    (staging / member.name.replace("/", "_")).write_bytes(tar.extractfile(member).read())
                     found.add(member.name)
             if f"{self.arch}/{source_name}.so" not in found:
                 raise StateError("algorithm archive has no library for this CPU architecture")
             if assignment["compute_type"] == "aws_g4dn" and f"ptx/{source_name}.ptx" not in found:
                 raise StateError("GPU algorithm archive has no PTX")
+            for entry, destination in wanted.items():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(staging / entry.replace("/", "_"), destination)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+    def prepare(self, assignment):
+        root, name = self._paths(assignment)
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "results").mkdir(exist_ok=True)
+        algorithm = assignment["settings"]["algorithm_id"]
+        source_name = assignment.get("algorithm_name",algorithm)
+        library = root / (algorithm + ".so")
+        marker = root / "archive.sha256"
+        if not library.exists() or not marker.exists() or marker.read_text() != assignment["binary_sha256"]:
+            wanted = self._library_cache(assignment, source_name)
+            if not all(path.is_file() for path in wanted.values()):
+                # First use of this checksum on this machine, or a GPU
+                # assignment whose PTX an earlier CPU assignment did not keep.
+                self._fetch_archive(assignment, source_name, wanted)
+            targets = {f"{self.arch}/{source_name}.so": library, f"ptx/{source_name}.ptx": root / (algorithm + ".ptx")}
+            for entry, source in wanted.items():
+                shutil.copyfile(source, targets[entry])
             marker.write_text(assignment["binary_sha256"])
         image = self.images[assignment["settings"]["challenge_id"]]
         existing = self._inspect(name)
