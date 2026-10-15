@@ -103,3 +103,40 @@ class ArtifactTests(unittest.TestCase):
                         runtime.prepare(value)
                     run.assert_not_called()
                     self.assertFalse((runtime._paths(value)[0] / 'archive.sha256').exists())
+
+    def test_checked_libraries_are_reused_across_assignments_with_the_same_checksum(self):
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode='w:gz') as output:
+            for name, data in (('amd64/fixture_algo.so', b'bin'), ('ptx/fixture_algo.ptx', b'ptx')):
+                item = tarfile.TarInfo(name)
+                item.size = len(data)
+                output.addfile(item, io.BytesIO(data))
+        payload = buffer.getvalue()
+        digest = hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as directory, patch('platform.machine', return_value='x86_64'):
+            runtime = DockerRuntime(directory, {'c001': IMAGE})
+            with patch('worker_v2.runtime.build_opener') as opener, \
+                    patch.object(runtime, '_inspect', return_value=None), patch.object(runtime, '_run'):
+                opener.return_value.open.side_effect = lambda *args, **kwargs: io.BytesIO(payload)
+                first = {**assignment(), 'binary_url': MEDIA, 'binary_sha256': digest}
+                second = {**first, 'benchmark_id': 'second-benchmark'}
+                runtime.prepare(first)
+                runtime.prepare(second)
+                self.assertEqual(opener.return_value.open.call_count, 1)
+                for value in (first, second):
+                    self.assertEqual((runtime._paths(value)[0] / 'c001_a001.so').read_bytes(), b'bin')
+                    self.assertEqual((runtime._paths(value)[0] / 'archive.sha256').read_text(), digest)
+                # A GPU assignment needs the PTX, which the CPU extraction did not keep.
+                gpu = {**assignment('GPU'), 'benchmark_id': 'gpu-benchmark', 'binary_url': MEDIA, 'binary_sha256': digest}
+                runtime.prepare(gpu)
+                self.assertEqual(opener.return_value.open.call_count, 2)
+                self.assertEqual((runtime._paths(gpu)[0] / 'c001_a001.ptx').read_bytes(), b'ptx')
+                runtime.prepare({**gpu, 'benchmark_id': 'gpu-benchmark-2'})
+                self.assertEqual(opener.return_value.open.call_count, 2)
+                # Another checksum is never served from the cache, and a failed check caches nothing.
+                other = {**first, 'benchmark_id': 'other-benchmark', 'binary_sha256': 'b' * 64}
+                with self.assertRaises(StateError):
+                    runtime.prepare(other)
+                self.assertEqual(opener.return_value.open.call_count, 3)
+                self.assertEqual(sorted(path.name for path in runtime.libraries.iterdir()), [digest])
+                self.assertFalse((runtime._paths(other)[0] / 'archive.sha256').exists())
