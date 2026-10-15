@@ -8,10 +8,9 @@ import platform
 import re
 import subprocess
 import tarfile
-from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 
-from .client import NoRedirect
+from .artifacts import ArtifactRedirect, DEFAULT_BINARY_HOSTS, check_url
 from .proofs import leaf_hash
 from .resources import RuntimeLimits
 from .state import StateError, canonical
@@ -22,7 +21,7 @@ CPU_TYPES = ARM_TYPES | {"aws_t3", "aws_t3a", "aws_c7i", "aws_c7a", "aws_m7i", "
 
 
 class DockerRuntime:
-    def __init__(self, directory, images, *, binary_hosts=("mainnet-api.tig.foundation",),
+    def __init__(self, directory, images, *, binary_hosts=DEFAULT_BINARY_HOSTS,
                  nonce_timeout=1800, resource_limits=None, command=subprocess.run):
         self.limits = RuntimeLimits.parse(resource_limits)
         self.directory = Path(directory).resolve() / "runtime"
@@ -40,6 +39,11 @@ class DockerRuntime:
             info = self._run(["docker", "info", "--format", "{{json .CgroupDriver}} {{json .CgroupVersion}}"])
             if info.stdout.strip() != '"systemd" "2"':
                 raise StateError("shared worker limits require Docker with systemd and cgroup v2")
+
+    def validate_release(self, release):
+        images = release.get('runtime_images')
+        if not isinstance(images, dict) or images != self.images:
+            raise StateError('The pool runtime changed; drain existing work and update this worker and its helpers before requesting new work')
 
     def validate(self, assignment, offer):
         settings = assignment.get("settings", {})
@@ -67,9 +71,7 @@ class DockerRuntime:
         image = self.images.get(challenge, "")
         if not re.fullmatch(r"ghcr\.io/tig-foundation/tig-monorepo/[a-z_]+/runtime@sha256:[0-9a-f]{64}", image):
             raise StateError("challenge runtime must be an explicitly pinned official image digest")
-        url = urlsplit(assignment.get("binary_url", ""))
-        if url.scheme != "https" or url.hostname not in self.binary_hosts or url.username or url.password or url.fragment:
-            raise StateError("algorithm download does not use an allowed HTTPS host")
+        check_url(assignment.get("binary_url", ""), self.binary_hosts)
         if not re.fullmatch(r"[0-9a-f]{64}", assignment.get("binary_sha256", "")):
             raise StateError("assignment must include the pool's verified binary archive checksum")
 
@@ -97,7 +99,8 @@ class DockerRuntime:
         marker = root / "archive.sha256"
         if not library.exists() or not marker.exists() or marker.read_text() != assignment["binary_sha256"]:
             request = Request(assignment["binary_url"], headers={"User-Agent": "innopool-v2-member/2.0"})
-            with build_opener(NoRedirect()).open(request, timeout=60) as response:
+            check_url(assignment["binary_url"], self.binary_hosts)
+            with build_opener(ArtifactRedirect(self.binary_hosts)).open(request, timeout=60) as response:
                 archive = response.read(64*1024*1024+1)
             if len(archive) > 64*1024*1024 or hashlib.sha256(archive).hexdigest() != assignment["binary_sha256"]:
                 raise StateError("algorithm archive checksum or size is invalid")

@@ -24,6 +24,16 @@ class Runner:
         self.offer = {"resource": resource, "compute_type": compute_type, "capacity": {"workers": workers}}
         self.workers = workers
 
+    def check_release(self, capabilities):
+        validate = getattr(self.runtime, 'validate_release', None)
+        expected = capabilities.get('release_digest')
+        if validate is None or expected is None:
+            return  # Custom runtimes and unconfigured API fixtures keep their contract.
+        release = self.client.call('GET', '/api/v2/release')
+        if digest(canonical(release)) != expected:
+            raise ProtocolError('The pool release changed while checking new work; retry the release check')
+        validate(release)
+
     def step(self, *, drain=False):
         capabilities = self.client.capabilities()
         member = self.client.call("GET", "/api/v2/member/balance")
@@ -32,10 +42,15 @@ class Runner:
         if request is None:
             if drain or not capabilities.get("work_enabled"):
                 return "idle"
+            self.check_release(capabilities)
+            before_offer = getattr(self.runtime, "before_offer", None)
+            if before_offer:
+                self.offer["capacity"]["workers"] = before_offer()
             request = self.store.request(self.offer)  # Commit request key before POST.
         if request["server_id"] is None:
             if not capabilities.get("work_enabled"):
                 return "waiting"
+            self.check_release(capabilities)
             response = self.client.call("POST", "/api/v2/work-requests",
                 {**json.loads(request["offer"]), "request_key": request["request_key"]})
             self.store.link_request(request["request_key"], response["id"], response.get("benchmark_id"))
@@ -46,6 +61,10 @@ class Runner:
             return state["state"]
         if not state.get("benchmark_id"):
             if state["state"] == "queued" and not drain:
+                self.check_release(capabilities)
+                before_offer = getattr(self.runtime, "before_offer", None)
+                if before_offer and before_offer() < json.loads(request["offer"])["capacity"]["workers"]:
+                    raise StateError("saved offer exceeds currently ready member capacity")
                 self.client.call("POST", "/api/v2/work-requests/" + quote(request["server_id"], safe="") + "/refresh", {})
             return "waiting"
         identity = state["benchmark_id"]

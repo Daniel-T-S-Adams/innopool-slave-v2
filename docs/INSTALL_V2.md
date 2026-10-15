@@ -1,10 +1,12 @@
 # Installing and updating a pinned v2 worker
 
-The mainnet pool serves a checked installer for worker `fd29279`, tag
-`mainnet-cpu-pilot-20261007`. Installation is available from its Join page, but
-new work is paused during operational cleanup. The 7 October CPU attempt
-expired before TIG accepted its results; timely execution remains unvalidated.
-See the pool's [current operations record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/OPERATIONS_STATUS.md).
+The mainnet pool serves a checked installer for worker `dddad9d`, tag
+`mainnet-runtime-release-guard-20261014`, now paired with pool `59a3446`
+and official 0.0.8 CPU runtimes. Installation is available from its Join page.
+New work remains paused while the remaining launch checks are completed.
+The corrected master/helper benchmark activated on TIG on 14 October, with
+all 4,000 nonces uploaded 12m40s after handover. Reward settlement remains open.
+See the pool's [current operations record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
 Do not use the inherited batch-worker
 installer or Compose stack for whole-benchmark work.
 
