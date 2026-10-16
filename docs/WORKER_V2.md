@@ -146,11 +146,9 @@ records activation and storage conversion progress.
 
 ## Validation and current limits
 
-Run the legacy and v2 suites in separate processes: the legacy tests install
-mock modules that must not replace the real BLAKE3 dependency in v2 tests.
+Run the suite with the real BLAKE3 dependency installed from `requirements-v2.txt`:
 
 ```sh
-python3 -m unittest discover -s tests -p 'test_*.py' -v
 python3 -m unittest discover -s tests/v2 -v
 ```
 

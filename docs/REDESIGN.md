@@ -39,23 +39,23 @@ must additionally pin and validate both commits with real challenge runtimes.
 
 ## Baseline validation
 
-On 20 September 2026, Python 3.12.3 passed all 17 existing regression tests:
+The original batch worker's 17 regression tests passed on 20 September 2026
+(Python 3.12.3) before that implementation was removed from this repository.
+The `worker-baseline` CI job now runs the v2 suite in an isolated runner:
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 -m unittest discover -s tests/v2 -v
 ```
 
 These tests mock runtime and network operations. They do not connect to a live
-pool, launch challenge containers, or demonstrate v2 benchmark execution.
-The `worker-baseline` CI job repeats them in an isolated runner.
+pool or launch challenge containers.
 
 ## Installed release workflow and remaining validation
 
 The v2 installer pins a detached commit, isolates its environment/runtime names
 and preserves saved evidence during drained updates. The former startup script
 now invokes the pinned launcher; it performs no startup Git reset. The README
-and [installer guide](INSTALL_V2.md) describe v2; inherited batch-worker behavior
-is retained in [the legacy guide](LEGACY_WORKER.md).
+and [installer guide](INSTALL_V2.md) describe v2.
 
 CPU testnet execution and activation passed in September. The mainnet attempt
 on 7–9 October completed after its protocol lifetime and was rejected. On

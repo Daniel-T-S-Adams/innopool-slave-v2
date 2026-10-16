@@ -7,8 +7,6 @@ New work remains paused while the remaining launch checks are completed.
 The corrected master/helper benchmark activated on TIG on 14 October, with
 all 4,000 nonces uploaded 12m40s after handover. Reward settlement remains open.
 See the pool's [current operations record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/OPERATIONS_STATUS.md).
-Do not use the inherited batch-worker
-installer or Compose stack for whole-benchmark work.
 
 ## Install from the pool's recorded release
 

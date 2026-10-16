@@ -55,8 +55,7 @@ Development entry point: `python3 -m worker_v2 --config /absolute/worker.json`.
 Install `requirements-v2.txt` in a separate Python 3.12 environment. Execution
 tokens authorize work; they cannot authorize a member withdrawal.
 
-The inherited Compose stack is the original batch-worker implementation. Its
-instructions are [archived separately](docs/LEGACY_WORKER.md). The fork’s
-`scripts/start-fresh.sh` now accepts only a v2 installation directory and starts
-its pinned launcher. It does not update Git, recreate containers or install a
-legacy service. The original repository and deployment remain separate.
+The original batch-worker implementation this repository started from has been
+removed; whole-benchmark work uses only `worker_v2`. `scripts/start-fresh.sh`
+accepts a v2 installation directory and starts its pinned launcher. It does not
+update Git, recreate containers or install any other service.
