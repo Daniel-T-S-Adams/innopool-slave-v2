@@ -1,38 +1,13 @@
 # Member master with SSH helpers
 
-The corrected 14 October mainnet trial activated successfully at TIG height
-**1383916**, around **11:35 UTC**. Master/helper saved all 4,000 outputs
-(1,968/2,032); results were uploaded **12m40s after handover**.
-Confirmed proof and detailed TIG records show no verification failure. All results/proofs match the stored pool
-payloads. New work remains paused; reward settlement remains open. The pool
-storage ordering fix is deployed. The earlier runtime-pin failure is preserved
-in the
-[trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
-
-The first 14 October mainnet trial completed its 4,000 nonces in 10m31s but failed
-later TIG solution verification because the configured knapsack runtime was
-0.0.7 rather than current 0.0.8. All five corrected unpaid tracks passed
-on the intended master/helper (12,400 outputs, 15 proofs; slowest 12m29s). Keep every helper's complete runtime-image map
-equal to the master's and the pool's current requirement before offering work.
-The release guard stops stale offers and is served by the production
-installer in worker `dddad9`, now paired with pool `59a3446` after the
-14 October storage fix. See the
-[trial record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/MAINNET_CPU_TRIAL_20261014.md).
-
-Implemented on 12 October 2026. This optional mode lets one pool member combine
+This optional mode lets one pool member combine
 local nonce computation and explicitly configured helper servers. The default
 installer still starts a local worker; it does not provision helper accounts,
 keys, services or networking. The pool API and benchmark format are unchanged.
 
-First deployed in worker `a715041` on 13 October 2026, paired with pool `f5f1028`.
-The same helper implementation remains in the currently served worker `dddad9`.
-The intended master and helper, with six workers each, passed all five possible
-current `c003_a154` CPU tracks: 12,400 outputs and 15 sampled proofs, with a
-slowest track of 12m33s. A separate 12 October rehearsal passed deliberate
-disconnect and crash recovery. These checks used real runtime/verifier code
-and simulated TIG responses. Corrected paid mainnet activation passed; settlement remains open;
-ordinary pool work is paused. See the
-[pool rollout record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/LEAN_ROLLOUT_20261013.md).
+Keep every helper's complete runtime-image map equal to the master's and the
+pool's current requirement before offering work; the release guard stops
+stale offers.
 
 ## How it works
 
@@ -111,7 +86,7 @@ compute type, complete runtime-image mapping and nonce timeout. The image
 placeholder above must be replaced with actual official images pinned by
 SHA-256. The helper's slice must match both configurations. The transport
 starts the helper inside that slice with `systemd-run --scope`.
-For legacy assignments whose archive URL points to the pool, configure the
+For older assignments whose archive URL points to the pool, configure the
 helper's `binary_hosts` with the pool API hostname plus
 `mainnet-api.tig.foundation` and `media.githubusercontent.com`.
 
@@ -140,34 +115,15 @@ implementation does not guess a finalization date and delete evidence.
 Local tests cover local/helper aggregation, exact whole-benchmark proofs,
 disconnection and master restart, cached helper output, assignment/architecture
 checks, strict SSH configuration, and concurrent request/response matching
-through real subprocess pipes. **46 v2 tests and 17 inherited tests passed.**
-Computation and the SSH executable in those tests are simulated.
+through real subprocess pipes. Computation and the SSH executable in those
+tests are simulated.
 
-A subsequent real SSH/Docker check used a workspace coordinator and an isolated
-helper on `poolminer1`, with two concurrent nonces. Eight nonces from the archived
-public knapsack assignment passed the actual TIG runtime/verifier in 129.45
-seconds including preparation. After a new SSH session, a saved nonce was
-recovered from the helper cache. This was a subset check without pool calls;
-it did not complete a protocol benchmark or use the intended second server.
-
-The subsequent complete rehearsal used `poolminer1` as master with six local
-workers and six SSH helper workers on `77.42.14.166`. Both ARM64 hosts ran the
-same pinned source/images and configured `aws_c7g` verification type; this does
-not certify a physical cloud instance type. All **200 knapsack nonces** and
-**three sampled proofs** passed. The master returned 99 results locally and
-received 101 from the helper. Wall time was **15 minutes 8 seconds**, including
-an intentional helper disconnect, master SIGKILL and the pause before restart.
-All **105 saved outputs** survived unchanged and were reused without recomputation.
-
-The isolated pool API accepted complete result/proof uploads and identical
-retries, rejected a changed root, and preserved financial records. Protocol
-receipts/sampling/activation were simulated; no paid TIG submission or production
-execution token was used. Owned runtime containers were released and test units
-stopped. Separate source/configuration and evidence remain on both hosts; no
-autostart worker was created. Temporary slice definitions disappear on reboot
-and must be installed deliberately for a persistent release.
-
-See the pool's [full verification record](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/cleanup/compact-pool-storage/docs/SSH_MEMBER_MASTER_VERIFICATION.md).
-Paired production activation and corrected paid knapsack activation passed on
-13–14 October. Timely job-scheduling execution, GPU validation and reward
-settlement remain pending.
+A real two-server rehearsal on two ARM64 hosts, six local workers plus six SSH
+helper workers with the same pinned source and images, completed a 200-nonce
+knapsack assignment and three sampled proofs in about fifteen minutes,
+including a deliberate helper disconnect, a master kill and a restart; every
+saved output survived unchanged and was reused without recomputation. Paid
+mainnet benchmarks have since completed on a master with one helper. The
+configured verification compute type does not certify a physical cloud
+instance type. Timely execution of every challenge, GPU validation and reward
+settlement are measured separately.

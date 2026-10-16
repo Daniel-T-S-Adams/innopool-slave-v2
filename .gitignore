@@ -1,9 +1,6 @@
-.env
 data/
-util_logs/
 __pycache__/
 *.pyc
-.Python
 .venv/
 venv/
 *.swp

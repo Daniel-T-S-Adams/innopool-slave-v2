@@ -161,4 +161,4 @@ class Store:
             self.connection.execute("UPDATE assignments SET terminal_state=? WHERE benchmark_id=(SELECT benchmark_id FROM requests WHERE request_key=?)",
                                     (state, request_key))
         # Evidence remains present through arbitration/finalization. This module
-        # has no time-based deletion and never inherits legacy AUDIT_TTL cleanup.
+        # has no time-based deletion and performs no time-based cleanup of evidence.

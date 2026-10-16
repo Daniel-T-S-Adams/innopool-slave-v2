@@ -54,12 +54,12 @@ Do not stop the slice while work or observers are running.
 
 ## Prepare each worker
 
-Once the pool's tested paired release and member tokens are available, follow
+Follow
 [the installer procedure](INSTALL_V2.md) into separate private directories, for
 example `/var/lib/innopool-v2-pilot/member-a` and `member-b`. Offer CPU only with
 `--workers 1` and a verification type compatible with the machine's architecture.
-On the current ARM64 host use a supported ARM verification type; AMD64 and GPU
-types are unsuitable.
+On an ARM64 host use a supported ARM verification type; AMD64 and GPU
+types are unsuitable there.
 
 Before the first launch, add this object to each installation's `worker.json`,
 leaving its release, pool, identity and data-directory settings intact:
