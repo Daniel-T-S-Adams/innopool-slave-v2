@@ -18,7 +18,7 @@ compatible machines. The master uses the same
 API 2.0 work request, assignment, acknowledgement, complete result and proof
 routes. It remains responsible for the whole benchmark after confirmed handover.
 Members implement internal transport, scheduling, recovery and output aggregation.
-The pool's [member master contract](https://github.com/Daniel-T-S-Adams/tig-pool-v2/blob/main/docs/MEMBER_MASTER_V2.md)
+The pool's [member master contract](https://github.com/Daniel-T-S-Adams/community-pool/blob/main/docs/MEMBER_MASTER_V2.md)
 specifies that integration. Paired pool tests exercise a simulated master
 combining helper outputs, recovering missing work after restart, and submitting
 one complete result and sampled proofs. SSH transport and recovery passed

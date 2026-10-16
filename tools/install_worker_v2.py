@@ -20,8 +20,8 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler,Request,build_opener
 
 
-WORKER_REPOSITORY='https://github.com/Daniel-T-S-Adams/innopool-slave-v2.git'
-POOL_REPOSITORY='https://github.com/Daniel-T-S-Adams/tig-pool-v2.git'
+WORKER_REPOSITORY='https://github.com/Daniel-T-S-Adams/community-pool-worker.git'
+POOL_REPOSITORY='https://github.com/Daniel-T-S-Adams/community-pool.git'
 MARKER='installation-v2.json'
 VERSION='2.0'
 
