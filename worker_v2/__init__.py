@@ -1,1 +1,1 @@
-"""Whole-benchmark worker; never imports or starts the legacy batch runtime."""
+"""Whole-benchmark member worker; owns only its own benchmark runtime containers."""

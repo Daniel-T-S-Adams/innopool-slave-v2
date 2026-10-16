@@ -9,7 +9,7 @@ from .state import StateError
 
 def _json(value):
     # serde_json emits UTF-8 strings. This matters for a solution containing
-    # non-ASCII characters; ASCII-only solutions match the legacy implementation.
+    # non-ASCII characters; ASCII-only solutions match the reference implementation.
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
 
 
